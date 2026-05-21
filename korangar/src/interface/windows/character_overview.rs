@@ -92,29 +92,39 @@ where
                         },
                     ),
                 },
-                button! {
-                    text: client_state().localization().inventory_button_text(),
-                    event: InputEvent::ToggleInventoryWindow,
+                split! {
+                    gaps: theme().window().gaps(),
+                    children: (
+                        button! {
+                            text: client_state().localization().inventory_button_text(),
+                            event: InputEvent::ToggleInventoryWindow,
+                        },
+                        button! {
+                            text: client_state().localization().equipment_button_text(),
+                            event: InputEvent::ToggleEquipmentWindow,
+                        },
+                        button! {
+                            text: client_state().localization().skill_tree_button_text(),
+                            event: InputEvent::ToggleSkillTreeWindow,
+                        },
+                        button! {
+                            text: client_state().localization().stats_button_text(),
+                            event: InputEvent::ToggleStatsWindow,
+                        },
+                    ),
                 },
-                button! {
-                    text: client_state().localization().equipment_button_text(),
-                    event: InputEvent::ToggleEquipmentWindow,
-                },
-                button! {
-                    text: client_state().localization().skill_tree_button_text(),
-                    event: InputEvent::ToggleSkillTreeWindow,
-                },
-                button! {
-                    text: client_state().localization().stats_button_text(),
-                    event: InputEvent::ToggleStatsWindow,
-                },
-                button! {
-                    text: client_state().localization().friend_list_button_text(),
-                    event: InputEvent::ToggleFriendListWindow,
-                },
-                button! {
-                    text: client_state().localization().menu_button_text(),
-                    event: InputEvent::ToggleMenuWindow,
+                split! {
+                    gaps: theme().window().gaps(),
+                    children: (
+                        button! {
+                            text: client_state().localization().friend_list_button_text(),
+                            event: InputEvent::ToggleFriendListWindow,
+                        },
+                        button! {
+                            text: client_state().localization().menu_button_text(),
+                            event: InputEvent::ToggleMenuWindow,
+                        },
+                    ),
                 },
             ),
         }
