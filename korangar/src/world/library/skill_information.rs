@@ -47,7 +47,7 @@ impl Table for SkillListInformation {
         for (skill_id, table) in skill_info_list.pairs::<u16, mlua::Table>().flatten() {
             let file_name = table.get(1)?;
             let name = table.get("SkillName").map(fix_encoding)?;
-            let maximum_level = table.get("MaxLv")?;
+            let maximum_level: u16 = table.get("MaxLv").unwrap_or(1);
             let can_select_level = table.get("bSeperateLv")?;
             let acquisition = match table.get::<String>("Type").ok().as_deref() {
                 Some("Quest") => SkillAcquisition::Quest,
