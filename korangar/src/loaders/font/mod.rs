@@ -28,6 +28,7 @@ use serde::{Deserialize, Serialize};
 use self::color_span_iterator::ColorSpanIterator;
 use super::{GameFileLoader, TextureLoader};
 use crate::graphics::{Color, MAX_TEXTURE_SIZE, ScreenSize, Texture};
+pub use crate::loaders::font::font_file::CsvFormat;
 use crate::loaders::font::font_file::FontFile;
 use crate::loaders::font::layout_key::{LayoutKey, LayoutKeyRef};
 use crate::loaders::rectangle::Rectangle;
@@ -156,7 +157,7 @@ pub struct FontLoader {
 }
 
 impl FontLoader {
-    pub fn new(fonts: &[String], game_file_loader: &GameFileLoader, texture_loader: &TextureLoader) -> Self {
+    pub fn new(fonts: &[(String, CsvFormat)], game_file_loader: &GameFileLoader, texture_loader: &TextureLoader) -> Self {
         assert_ne!(fonts.len(), 0, "no font defined");
 
         let mut font_system = FontSystem::new_with_locale_and_db(Self::system_locale(), fontdb::Database::new());
@@ -164,7 +165,7 @@ impl FontLoader {
 
         let fonts: Vec<FontFile> = fonts
             .iter()
-            .filter_map(|font_name| FontFile::new(font_name, game_file_loader, &mut font_system))
+            .filter_map(|(font_name, csv_format)| FontFile::new(font_name, *csv_format, game_file_loader, &mut font_system))
             .collect();
 
         let primary_font_family = Self::extract_primary_font_family(&font_system, &fonts);

@@ -15,6 +15,18 @@ use crate::loaders::font::font_map_descriptor::parse_glyphs;
 
 const FONT_FOLDER_PATH: &str = "data\\font";
 
+/// Format of the first column in the atlas CSV produced by msdf-atlas-gen.
+#[derive(Clone, Copy)]
+pub enum CsvFormat {
+    /// `-allglyphs` / `-glyphset` output: column 1 is the font's internal glyph
+    /// index.
+    GlyphId,
+    /// `-charset` output: column 1 is the Unicode codepoint of each glyph.
+    /// The loader remaps these to glyph ids using the font's cmap so renderers
+    /// that work in glyph-id space (e.g. cosmic-text) can find them.
+    Codepoint,
+}
+
 pub(crate) struct FontFile {
     pub(crate) ids: Vec<ID>,
     pub(crate) font_map: RgbaImage,
@@ -22,7 +34,12 @@ pub(crate) struct FontFile {
 }
 
 impl FontFile {
-    pub(crate) fn new(name: &str, game_file_loader: &GameFileLoader, font_system: &mut FontSystem) -> Option<Self> {
+    pub(crate) fn new(
+        name: &str,
+        csv_format: CsvFormat,
+        game_file_loader: &GameFileLoader,
+        font_system: &mut FontSystem,
+    ) -> Option<Self> {
         #[cfg(feature = "debug")]
         let timer = Timer::new_dynamic(format!("load font: {}", name.magenta()));
 
@@ -37,7 +54,8 @@ impl FontFile {
             return None;
         };
 
-        let ids = font_system.db_mut().load_font_source(Source::Binary(Arc::new(font_data)));
+        let font_data = Arc::new(font_data);
+        let ids = font_system.db_mut().load_font_source(Source::Binary(font_data.clone()));
 
         let Ok(font_map_data) = game_file_loader.get(&map_file_path) else {
             #[cfg(feature = "debug")]
@@ -78,6 +96,25 @@ impl FontFile {
         };
 
         let glyphs = parse_glyphs(font_description_content, font_map_width, font_map_height);
+
+        let glyphs = match csv_format {
+            CsvFormat::GlyphId => glyphs,
+            CsvFormat::Codepoint => {
+                let Ok(face) = ttf_parser::Face::parse(font_data.as_ref(), 0) else {
+                    #[cfg(feature = "debug")]
+                    print_debug!("[{}] failed to parse font face for '{}'", "error".red(), ttf_file_path.magenta());
+                    return None;
+                };
+                glyphs
+                    .into_iter()
+                    .filter_map(|(codepoint, coordinate)| {
+                        let character = char::from_u32(u32::from(codepoint))?;
+                        let glyph_id = face.glyph_index(character)?;
+                        Some((glyph_id.0, coordinate))
+                    })
+                    .collect()
+            }
+        };
 
         #[cfg(feature = "debug")]
         timer.stop();
