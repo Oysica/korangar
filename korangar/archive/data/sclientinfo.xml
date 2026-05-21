@@ -8,7 +8,7 @@
         <display>Korangar</display>
         <desc>Ragnarok Online</desc>
         <balloon>Sakray Server</balloon>
-        <address>49.12.109.207</address>
+        <address>127.0.0.1</address>
         <port>6900</port>
         <version>20</version>
         <langtype>1</langtype>

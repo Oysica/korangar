@@ -346,7 +346,7 @@ impl Client {
 
         time_phase!("create adapter", {
             let instance = Instance::new(InstanceDescriptor {
-                backends: Backends::all().with_env(),
+                backends: Backends::VULKAN.with_env(),
                 flags: InstanceFlags::from_build_config().with_env(),
                 memory_budget_thresholds: MemoryBudgetThresholds::default(),
                 backend_options: BackendOptions {
