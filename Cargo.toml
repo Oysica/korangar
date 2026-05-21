@@ -63,7 +63,7 @@ syn = "2"
 sys-locale = "0.3"
 tokio = { version = "1", default-features = false }
 walkdir = "2"
-wgpu = "29"
+wgpu = { version = "29", default-features = false, features = ["vulkan"] }
 winit = "0.30"
 
 [profile.release]

@@ -87,8 +87,10 @@ impl ShaderCompiler {
         assert!(found, "failed to read shader data for {folder}/{name}");
 
         self.device.create_shader_module(ShaderModuleDescriptor {
-            label: Some(&format!("{folder}/{name}")),
-            source: ShaderSource::SpirV(Cow::Owned(aligned_data)),
-        })
+			label: Some(&format!("{folder}/{name}")),
+			source: ShaderSource::SpirV(
+				Cow::Owned(aligned_data)
+			),
+		})	
     }
 }
