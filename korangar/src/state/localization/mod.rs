@@ -203,6 +203,21 @@ pub struct Localization {
     cancel_skill_points_button_text: String,
     apply_skill_points_button_text: String,
     distribute_skill_points_button_text: String,
+    graphics_settings_window_title: String,
+    lighting_mode_text: String,
+    triple_buffering_text: String,
+    vsync_text: String,
+    vsync_not_supported_tooltip: String,
+    limit_framerate_text: String,
+    texture_filtering_text: String,
+    multisampling_text: String,
+    supersampling_text: String,
+    screen_space_aa_text: String,
+    shadow_method_text: String,
+    shadow_detail_text: String,
+    shadow_resolution_text: String,
+    sdsm_text: String,
+    high_quality_interface_text: String,
 }
 
 impl Localization {

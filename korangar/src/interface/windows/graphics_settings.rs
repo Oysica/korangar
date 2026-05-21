@@ -4,8 +4,9 @@ use rust_state::Path;
 use crate::interface::windows::WindowClass;
 use crate::loaders::OverflowBehavior;
 use crate::settings::{GraphicsSettingsCapabilitiesPathExt, GraphicsSettingsPathExt};
-use crate::state::ClientState;
+use crate::state::localization::LocalizationPathExt;
 use crate::state::theme::InterfaceThemeType;
+use crate::state::{ClientState, ClientStatePathExt, client_state};
 use crate::{GraphicsSettings, GraphicsSettingsCapabilities};
 
 pub struct GraphicsSettingsWindow<A, B> {
@@ -38,7 +39,7 @@ where
             split! {
                 children: (
                     text! {
-                        text: "Lighting mode",
+                        text: client_state().localization().lighting_mode_text(),
                         overflow_behavior: OverflowBehavior::Shrink,
                     },
                     drop_down! {
@@ -48,21 +49,21 @@ where
                 )
             },
             state_button! {
-                text: "Triple buffering",
+                text: client_state().localization().triple_buffering_text(),
                 state: self.settings_path.triple_buffering(),
                 event: Toggle(self.settings_path.triple_buffering()),
             },
             state_button! {
-                text: "Enable VSYNC",
+                text: client_state().localization().vsync_text(),
                 state: self.settings_path.vsync(),
                 event: Toggle(self.settings_path.vsync()),
                 disabled: self.capabilities_path.vsync_setting_disabled(),
-                disabled_tooltip: "This setting is not supported on your system",
+                disabled_tooltip: client_state().localization().vsync_not_supported_tooltip(),
             },
             split! {
                 children: (
                     text! {
-                        text: "Limit framerate",
+                        text: client_state().localization().limit_framerate_text(),
                         overflow_behavior: OverflowBehavior::Shrink,
                     },
                     drop_down! {
@@ -74,7 +75,7 @@ where
             split! {
                 children: (
                     text! {
-                        text: "Texture filtering",
+                        text: client_state().localization().texture_filtering_text(),
                         overflow_behavior: OverflowBehavior::Shrink,
                     },
                     drop_down! {
@@ -86,7 +87,7 @@ where
             split! {
                 children: (
                     text! {
-                        text: "Multisampling",
+                        text: client_state().localization().multisampling_text(),
                         overflow_behavior: OverflowBehavior::Shrink,
                     },
                     drop_down! {
@@ -98,7 +99,7 @@ where
             split! {
                 children: (
                     text! {
-                        text: "Supersampling",
+                        text: client_state().localization().supersampling_text(),
                         overflow_behavior: OverflowBehavior::Shrink,
                     },
                     drop_down! {
@@ -110,7 +111,7 @@ where
             split! {
                 children: (
                     text! {
-                        text: "Screen space AA",
+                        text: client_state().localization().screen_space_aa_text(),
                         overflow_behavior: OverflowBehavior::Shrink,
                     },
                     drop_down! {
@@ -122,7 +123,7 @@ where
             split! {
                 children: (
                     text! {
-                        text: "Shadow method",
+                        text: client_state().localization().shadow_method_text(),
                         overflow_behavior: OverflowBehavior::Shrink,
                     },
                     drop_down! {
@@ -134,7 +135,7 @@ where
             split! {
                 children: (
                     text! {
-                        text: "Shadow detail",
+                        text: client_state().localization().shadow_detail_text(),
                         overflow_behavior: OverflowBehavior::Shrink,
                     },
                     drop_down! {
@@ -146,7 +147,7 @@ where
             split! {
                 children: (
                     text! {
-                        text: "Shadow resolution",
+                        text: client_state().localization().shadow_resolution_text(),
                         overflow_behavior: OverflowBehavior::Shrink,
                     },
                     drop_down! {
@@ -156,19 +157,19 @@ where
                 )
             },
             state_button! {
-                text: "Sample Distribution Shadow Maps",
+                text: client_state().localization().sdsm_text(),
                 state: self.settings_path.sdsm(),
                 event: Toggle(self.settings_path.sdsm()),
             },
             state_button! {
-                text: "High quality interface",
+                text: client_state().localization().high_quality_interface_text(),
                 state: self.settings_path.high_quality_interface(),
                 event: Toggle(self.settings_path.high_quality_interface()),
             },
         );
 
         window! {
-            title: "Graphics Settings",
+            title: client_state().localization().graphics_settings_window_title(),
             class: Self::window_class(),
             theme: InterfaceThemeType::InGame,
             closable: true,
