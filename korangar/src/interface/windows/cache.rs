@@ -2,13 +2,88 @@ use std::collections::HashMap;
 
 #[cfg(feature = "debug")]
 use korangar_debug::logging::{Colorize, print_debug};
-use korangar_interface::window::Anchor;
+use korangar_interface::window::{Anchor, AnchorPoint};
 use ron::ser::PrettyConfig;
 use serde::{Deserialize, Serialize};
 
 use super::WindowClass;
-use crate::graphics::ScreenSize;
+use crate::graphics::{ScreenPosition, ScreenSize};
 use crate::state::ClientState;
+
+/// Width of the bottom-anchored experience bar in pixels.
+const EXPERIENCE_BAR_WIDTH: f32 = 600.0;
+/// Height of the bottom-anchored experience bar (matches `DualExperienceBar`).
+const EXPERIENCE_BAR_HEIGHT: f32 = 14.0;
+/// Margin between the experience bar and the screen bottom.
+const EXPERIENCE_BAR_BOTTOM_MARGIN: f32 = 8.0;
+
+fn experience_bar_anchor() -> Anchor<ClientState> {
+    Anchor::pinned(
+        AnchorPoint::BottomCenter,
+        ScreenPosition {
+            left: -EXPERIENCE_BAR_WIDTH / 2.0,
+            top: -(EXPERIENCE_BAR_HEIGHT + EXPERIENCE_BAR_BOTTOM_MARGIN),
+        },
+    )
+}
+
+fn experience_bar_size() -> ScreenSize {
+    ScreenSize {
+        width: EXPERIENCE_BAR_WIDTH,
+        height: EXPERIENCE_BAR_HEIGHT,
+    }
+}
+
+/// Width of the bottom-left chat window in pixels.
+const CHAT_WIDTH: f32 = 450.0;
+/// Height of the bottom-left chat window in pixels.
+const CHAT_HEIGHT: f32 = 220.0;
+/// Margin between the chat window and the screen left edge.
+const CHAT_EDGE_MARGIN: f32 = 8.0;
+/// Bottom margin = leave room for the experience bar + a small gap.
+const CHAT_BOTTOM_MARGIN: f32 =
+    EXPERIENCE_BAR_HEIGHT + EXPERIENCE_BAR_BOTTOM_MARGIN + 16.0;
+
+fn chat_anchor() -> Anchor<ClientState> {
+    Anchor::pinned(
+        AnchorPoint::BottomLeft,
+        ScreenPosition {
+            left: CHAT_EDGE_MARGIN,
+            top: -(CHAT_HEIGHT + CHAT_BOTTOM_MARGIN),
+        },
+    )
+}
+
+fn chat_size() -> ScreenSize {
+    ScreenSize {
+        width: CHAT_WIDTH,
+        height: CHAT_HEIGHT,
+    }
+}
+
+/// Width of the top-left character overview window in pixels.
+const CHARACTER_OVERVIEW_WIDTH: f32 = 320.0;
+/// Height of the top-left character overview window in pixels.
+const CHARACTER_OVERVIEW_HEIGHT: f32 = 200.0;
+/// Margin between the character overview window and the screen edges.
+const CHARACTER_OVERVIEW_EDGE_MARGIN: f32 = 8.0;
+
+fn character_overview_anchor() -> Anchor<ClientState> {
+    Anchor::pinned(
+        AnchorPoint::TopLeft,
+        ScreenPosition {
+            left: CHARACTER_OVERVIEW_EDGE_MARGIN,
+            top: CHARACTER_OVERVIEW_EDGE_MARGIN,
+        },
+    )
+}
+
+fn character_overview_size() -> ScreenSize {
+    ScreenSize {
+        width: CHARACTER_OVERVIEW_WIDTH,
+        height: CHARACTER_OVERVIEW_HEIGHT,
+    }
+}
 
 #[derive(Serialize, Deserialize)]
 pub struct WindowState {
@@ -70,10 +145,22 @@ impl korangar_interface::application::WindowCache<ClientState> for WindowCache {
     }
 
     fn get_window_state(&self, class: WindowClass) -> Option<(Anchor<ClientState>, ScreenSize)> {
+        if matches!(class, WindowClass::ExperienceBar) {
+            return Some((experience_bar_anchor(), experience_bar_size()));
+        }
+        if matches!(class, WindowClass::Chat) {
+            return Some((chat_anchor(), chat_size()));
+        }
+        if matches!(class, WindowClass::CharacterOverview) {
+            return Some((character_overview_anchor(), character_overview_size()));
+        }
         self.entries.get(&class).map(|entry| (entry.anchor, entry.size))
     }
 
     fn register_window(&mut self, class: WindowClass, anchor: Anchor<ClientState>, size: ScreenSize) {
+        if matches!(class, WindowClass::ExperienceBar | WindowClass::Chat | WindowClass::CharacterOverview) {
+            return;
+        }
         if let Some(entry) = self.entries.get_mut(&class) {
             entry.anchor = anchor;
             entry.size = size;
@@ -84,12 +171,18 @@ impl korangar_interface::application::WindowCache<ClientState> for WindowCache {
     }
 
     fn update_anchor(&mut self, class: WindowClass, anchor: Anchor<ClientState>) {
+        if matches!(class, WindowClass::ExperienceBar | WindowClass::Chat | WindowClass::CharacterOverview) {
+            return;
+        }
         if let Some(entry) = self.entries.get_mut(&class) {
             entry.anchor = anchor;
         }
     }
 
     fn update_size(&mut self, class: WindowClass, size: ScreenSize) {
+        if matches!(class, WindowClass::ExperienceBar | WindowClass::Chat | WindowClass::CharacterOverview) {
+            return;
+        }
         if let Some(entry) = self.entries.get_mut(&class) {
             entry.size = size;
         }

@@ -83,4 +83,6 @@
     shadow_resolution_text: "陰影解析度",
     sdsm_text: "取樣分布陰影圖",
     high_quality_interface_text: "高品質介面",
+    weight_text: "負重",
+    zeny_text: "Zeny",
 )

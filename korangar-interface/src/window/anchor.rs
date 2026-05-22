@@ -73,6 +73,13 @@ where
         }
     }
 
+    /// Create a pre-initialized anchor pinned to the given point with the given
+    /// offset. Useful for windows whose position should never be cached or
+    /// dragged by the user.
+    pub fn pinned(anchor_point: AnchorPoint, offset: App::Position) -> Self {
+        Self::initialized(anchor_point, offset)
+    }
+
     pub fn is_initializing(&self) -> bool {
         self.initializing
     }

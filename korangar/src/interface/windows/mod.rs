@@ -12,6 +12,7 @@ mod commands;
 mod dialog;
 mod equipment;
 mod error;
+mod experience_bar;
 #[cfg(feature = "debug")]
 mod frame_inspector;
 mod friend_list;
@@ -56,6 +57,7 @@ pub use self::commands::CommandsWindow;
 pub use self::dialog::{DialogWindow, DialogWindowState};
 pub use self::equipment::EquipmentWindow;
 pub use self::error::ErrorWindow;
+pub use self::experience_bar::ExperienceBarWindow;
 #[cfg(feature = "debug")]
 pub use self::frame_inspector::FrameInspectorWindow;
 pub use self::friend_list::{FriendListWindow, FriendListWindowState};
@@ -99,6 +101,7 @@ pub enum WindowClass {
     InterfaceSettings,
     GraphicsSettings,
     Hotbar,
+    ExperienceBar,
     Inventory,
     Equipment,
     SkillTree,

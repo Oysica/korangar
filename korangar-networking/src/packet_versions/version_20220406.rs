@@ -615,6 +615,11 @@ where
         index: packet.index,
         amount: packet.amount,
     })?;
+    packet_handler.register(|packet: DropItemAcknowledgePacket| NetworkEvent::InventoryItemRemoved {
+        reason: RemoveItemReason::Normal,
+        index: packet.index,
+        amount: packet.amount,
+    })?;
     packet_handler.register(|packet: ServerTickPacket| NetworkEvent::UpdateClientTick {
         client_tick: packet.client_tick,
         received_at: Instant::now(),

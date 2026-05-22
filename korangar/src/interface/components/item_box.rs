@@ -59,6 +59,38 @@ where
     }
 }
 
+/// Right-click handler that drops the entire stack of the targeted inventory
+/// slot. Only registered for inventory item slots.
+struct DropItemHandler<P> {
+    item_path: P,
+}
+
+impl<P> DropItemHandler<P> {
+    fn new(item_path: P) -> Self {
+        Self { item_path }
+    }
+}
+
+impl<P> ClickHandler<ClientState> for DropItemHandler<P>
+where
+    P: Path<ClientState, InventoryItem<ResourceMetadata>, false>,
+{
+    fn handle_click(&self, state: &State<ClientState>, queue: &mut EventQueue<ClientState>) {
+        let Some(item) = state.try_get(&self.item_path) else {
+            return;
+        };
+        let amount = match &item.details {
+            InventoryItemDetails::Regular { amount, .. } => *amount,
+            // Equippable items always drop as a single piece.
+            InventoryItemDetails::Equippable { .. } => 1,
+        };
+        queue.queue(InputEvent::DropItem {
+            index: item.index,
+            amount,
+        });
+    }
+}
+
 impl<P> DropHandler<ClientState> for ItemBoxHandler<P>
 where
     P: Path<ClientState, InventoryItem<ResourceMetadata>, false>,
@@ -80,6 +112,8 @@ where
 pub struct ItemBox<A> {
     item_path: A,
     handler: ItemBoxHandler<A>,
+    drop_handler: DropItemHandler<A>,
+    source: ItemSource,
     amount_display: AmountDisplay,
 }
 
@@ -94,6 +128,8 @@ where
         Self {
             item_path,
             handler: ItemBoxHandler::new(item_path, source),
+            drop_handler: DropItemHandler::new(item_path),
+            source,
             amount_display: AmountDisplay::default(),
         }
     }
@@ -178,6 +214,9 @@ where
 
             if is_hovered {
                 layout.register_click_handler(MouseButton::Left, &self.handler);
+                if matches!(self.source, ItemSource::Inventory) {
+                    layout.register_click_handler(MouseButton::Right, &self.drop_handler);
+                }
             }
 
             if matches!(item.details, InventoryItemDetails::Regular { .. }) {

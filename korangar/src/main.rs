@@ -1095,10 +1095,7 @@ impl Client {
                         client_state().player_name(),
                         // TODO: Check that manually asserting is fine. Technically this window should only
                         // be open while the player is selected.
-                        this_player().manually_asserted().base_level(),
-                        // TODO: Check that manually asserting is fine. Technically this window should only
-                        // be open while the player is selected.
-                        this_player().manually_asserted().job_level(),
+                        this_player().manually_asserted(),
                     ));
                     self.interface
                         .open_window(ChatWindow::new(client_state().chat_window(), client_state().chat_messages()));
@@ -1106,6 +1103,8 @@ impl Client {
                         client_state().hotbar().skills(),
                         client_state().skill_tree().skills(),
                     ));
+                    self.interface
+                        .open_window(ExperienceBarWindow::new(this_player().manually_asserted()));
 
                     // Put the dialog system in a well-defined state.
                     self.client_state.follow_mut(client_state().dialog_window()).end();
@@ -1982,7 +1981,10 @@ impl Client {
                     if self.client_state.try_follow(this_entity()).is_some() {
                         match self.interface.is_window_with_class_open(WindowClass::Inventory) {
                             true => self.interface.close_window_with_class(WindowClass::Inventory),
-                            false => self.interface.open_window(InventoryWindow::new(client_state().inventory().items())),
+                            false => self.interface.open_window(InventoryWindow::new(
+                                client_state().inventory(),
+                                this_player().manually_asserted(),
+                            )),
                         }
                     }
                 }
@@ -2203,6 +2205,9 @@ impl Client {
                     }
                     _ => {}
                 },
+                InputEvent::DropItem { index, amount } => {
+                    let _ = self.networking_system.request_drop_item(index, amount);
+                }
                 InputEvent::MoveSkill {
                     source,
                     destination,

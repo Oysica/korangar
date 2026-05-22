@@ -3539,6 +3539,16 @@ pub struct RemoveItemFromInventoryPacket {
     pub amount: u16,
 }
 
+/// Acknowledgement sent by the server after a successful client-initiated drop
+/// (`ZC_ITEM_THROW_ACK` / `0x00AF`).
+#[derive(Debug, Clone, Packet, ServerPacket, MapServer)]
+#[cfg_attr(feature = "interface", derive(rust_state::RustState, korangar_interface::element::StateElement))]
+#[header(0x00AF)]
+pub struct DropItemAcknowledgePacket {
+    pub index: InventoryIndex,
+    pub amount: u16,
+}
+
 // TODO: improve names
 #[derive(Debug, Clone, ByteConvertable)]
 #[cfg_attr(feature = "interface", derive(rust_state::RustState, korangar_interface::element::StateElement))]
@@ -3691,6 +3701,18 @@ impl ToBytes for EquipPosition {
 pub struct RequestEquipItemPacket {
     pub inventory_index: InventoryIndex,
     pub equip_position: EquipPosition,
+}
+
+/// Sent by the client to drop an item from the inventory onto the ground.
+/// rAthena's CZ_ITEM_THROW is shuffled per packet version; on PACKETVER
+/// >= 20180307 the header is `0x0363` with the same `(index, amount)`
+/// payload as the classic `0x00A2`.
+#[derive(Debug, Clone, Packet, ClientPacket, MapServer)]
+#[cfg_attr(feature = "interface", derive(rust_state::RustState, korangar_interface::element::StateElement))]
+#[header(0x0363)]
+pub struct RequestDropItemPacket {
+    pub inventory_index: InventoryIndex,
+    pub amount: u16,
 }
 
 #[derive(Debug, Clone, ByteConvertable)]

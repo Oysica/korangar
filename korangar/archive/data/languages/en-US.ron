@@ -83,4 +83,6 @@
     shadow_resolution_text: "Shadow resolution",
     sdsm_text: "Sample Distribution Shadow Maps",
     high_quality_interface_text: "High quality interface",
+    weight_text: "Weight",
+    zeny_text: "Zeny",
 )

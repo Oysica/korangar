@@ -898,7 +898,7 @@ impl Common {
 
 #[derive(Clone, RustState, StateWindow)]
 pub struct Player {
-    common: Common,
+    pub common: Common,
     pub hair_id: usize,
     pub spell_points: usize,
     pub activity_points: usize,
@@ -927,6 +927,13 @@ pub struct Player {
     pub luck_stat_points_cost: u8,
     pub attack_speed: u32,
     pub skill_points: u32,
+    pub zeny: u32,
+    pub weight: u32,
+    pub maximum_weight: u32,
+    pub base_experience: u64,
+    pub next_base_experience: u64,
+    pub job_experience: u64,
+    pub next_job_experience: u64,
 }
 
 impl Player {
@@ -981,6 +988,13 @@ impl Player {
             luck_stat_points_cost: 0,
             attack_speed: 0,
             skill_points: 0,
+            zeny: 0,
+            weight: 0,
+            maximum_weight: 0,
+            base_experience: 0,
+            next_base_experience: 0,
+            job_experience: 0,
+            next_job_experience: 0,
         }
     }
 
@@ -1036,6 +1050,13 @@ impl Player {
             StatType::LuckStatPointCost(cost) => self.luck_stat_points_cost = cost,
             StatType::AttackSpeed(attack_speed) => self.attack_speed = attack_speed,
             StatType::SkillPoints(skill_points) => self.skill_points = skill_points,
+            StatType::Zeny(value) => self.zeny = value,
+            StatType::Weight(value) => self.weight = value,
+            StatType::MaximumWeight(value) => self.maximum_weight = value,
+            StatType::BaseExperience(value) => self.base_experience = value,
+            StatType::NextBaseExperience(value) => self.next_base_experience = value,
+            StatType::JobExperience(value) => self.job_experience = value,
+            StatType::NextJobExperience(value) => self.next_job_experience = value,
             _ => {}
         }
     }

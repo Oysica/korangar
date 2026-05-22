@@ -218,6 +218,8 @@ pub struct Localization {
     shadow_resolution_text: String,
     sdsm_text: String,
     high_quality_interface_text: String,
+    weight_text: String,
+    zeny_text: String,
 }
 
 impl Localization {

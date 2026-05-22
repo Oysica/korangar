@@ -776,6 +776,12 @@ where
         }
     }
 
+    pub fn request_drop_item(&mut self, item_index: InventoryIndex, amount: u16) -> Result<(), NotConnectedError> {
+        match self.map_server_packet_version()? {
+            SupportedPacketVersion::_20220406 => self.send_map_server_packet(RequestDropItemPacket::new(item_index, amount)),
+        }
+    }
+
     pub fn cast_skill(&mut self, skill_id: SkillId, skill_level: SkillLevel, entity_id: EntityId) -> Result<(), NotConnectedError> {
         match self.map_server_packet_version()? {
             SupportedPacketVersion::_20220406 => self.send_map_server_packet(UseSkillAtIdPacket::new(skill_level, skill_id, entity_id)),

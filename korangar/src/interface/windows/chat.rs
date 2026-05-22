@@ -199,17 +199,22 @@ where
         };
 
         window! {
-            title: client_state().localization().chat_window_title(),
+            title: "",
             class: Self::window_class(),
             theme: InterfaceThemeType::InGame,
             background_color: client_theme().chat().window_color(),
-            resizable: true,
+            resizable: false,
             border: 3.0,
             gaps: 2.0,
+            title_height: 0.0,
             title_gap: 0.0,
             minimum_height: 150.0,
             maximum_height: 800.0,
             elements: (
+                scroll_view! {
+                    follow: true,
+                    children: ChatElement::new(self.chat_messages_path),
+                },
                 text_box! {
                     ghost_text: client_state().localization().chat_text_box_message(),
                     state: current_text_path,
@@ -217,10 +222,6 @@ where
                     background_color: client_theme().chat().text_box_background_color(),
                     focused_background_color: Color::rgba(0.0, 0.0, 0.0, 0.8),
                     focus_id: ChatTextBox,
-                },
-                scroll_view! {
-                    follow: true,
-                    children: ChatElement::new(self.chat_messages_path),
                 },
             ),
         }
