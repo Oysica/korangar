@@ -2,7 +2,7 @@ use std::string::String;
 use std::sync::Arc;
 
 use arrayvec::ArrayVec;
-use cgmath::{EuclideanSpace, Point3, Vector2, VectorSpace};
+use cgmath::{EuclideanSpace, Point3, Vector2, Vector3, VectorSpace};
 use korangar_audio::{AudioEngine, SoundEffectKey};
 #[cfg(feature = "debug")]
 use korangar_debug::logging::Colorize;
@@ -169,6 +169,13 @@ pub struct Common {
     pub tile_position: TilePosition,
     pub world_position: Point3<f32>,
     pub scale: f32,
+    // Smoothing offset applied to world_position when a new path arrives
+    // while the entity is still mid-tile, so the visible sprite glides into
+    // the new path instead of snapping back to the server-confirmed origin.
+    #[hidden_element]
+    visual_offset: Vector3<f32>,
+    #[hidden_element]
+    visual_offset_start_tick: u32,
     #[hidden_element]
     details: ResourceState<String>,
     #[hidden_element]
@@ -417,6 +424,8 @@ impl Common {
             stopped_moving: false,
             sound_state: SoundState::default(),
             fade_state: FadeState::new(FADE_IN_DURATION_MS, client_tick),
+            visual_offset: Vector3::new(0.0, 0.0, 0.0),
+            visual_offset_start_tick: 0,
             scale,
         }
     }
@@ -514,7 +523,20 @@ impl Common {
                 let movement_elapsed = (1.0 / total as f32) * offset as f32;
                 let position = last_step_position.to_vec().lerp(next_step_position.to_vec(), movement_elapsed);
 
-                self.world_position = Point3::from_vec(position);
+                // Decay the visual smoothing offset linearly over VISUAL_SMOOTH_MS
+                // so the sprite glides from its previous visual position to the
+                // new path instead of snapping.
+                const VISUAL_SMOOTH_MS: u32 = 200;
+                let elapsed = client_tick.0.saturating_sub(self.visual_offset_start_tick);
+                let smoothing = if elapsed >= VISUAL_SMOOTH_MS {
+                    self.visual_offset = Vector3::new(0.0, 0.0, 0.0);
+                    Vector3::new(0.0, 0.0, 0.0)
+                } else {
+                    let factor = 1.0 - (elapsed as f32 / VISUAL_SMOOTH_MS as f32);
+                    self.visual_offset * factor
+                };
+
+                self.world_position = Point3::from_vec(position + smoothing);
                 self.active_movement = active_movement.into();
             }
         }
@@ -530,6 +552,7 @@ impl Common {
         self.tile_position = position;
         self.world_position = world_position;
         self.active_movement = None;
+        self.visual_offset = Vector3::new(0.0, 0.0, 0.0);
         self.animation_state.idle(self.entity_type, client_tick);
     }
 
@@ -585,6 +608,21 @@ impl Common {
 
             // If there is only a single step the player is already on the correct tile.
             if steps.len() > 1 {
+                // Capture visual smoothing offset: if a previous movement was
+                // active, the sprite is likely between tiles. Without this,
+                // `update_movement` would snap to the new path's `start` tile
+                // and cause a stutter on rapid direction changes.
+                let previous_visual = self.world_position;
+                if let Some(new_start_world) = map.get_world_position(start) {
+                    let delta = previous_visual - new_start_world;
+                    if delta.x.abs() > 0.001 || delta.z.abs() > 0.001 {
+                        self.visual_offset = delta;
+                        self.visual_offset_start_tick = starting_timestamp.0;
+                    } else {
+                        self.visual_offset = Vector3::new(0.0, 0.0, 0.0);
+                    }
+                }
+
                 self.active_movement = Movement::new(steps, starting_timestamp.0).into();
 
                 if !self.animation_state.is_walking() {
