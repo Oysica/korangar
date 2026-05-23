@@ -234,7 +234,9 @@ impl Drawer<{ BindGroupCount::Two }, { ColorAttachmentCount::Three }, { DepthAtt
 
 impl Prepare for ForwardEntityDrawer {
     fn prepare(&mut self, device: &Device, instructions: &RenderInstruction) {
-        self.draw_count = instructions.entities.len();
+        // Only count instances that actually need to be drawn into the visible
+        // forward pass; picker-only proxies set add_to_visual = false.
+        self.draw_count = instructions.entities.iter().filter(|instruction| instruction.add_to_visual).count();
 
         if self.draw_count == 0 {
             return;
@@ -247,7 +249,7 @@ impl Prepare for ForwardEntityDrawer {
             self.lookup.clear();
             let mut texture_views = Vec::with_capacity_in(self.draw_count, &self.bump);
 
-            for instruction in instructions.entities.iter() {
+            for instruction in instructions.entities.iter().filter(|instruction| instruction.add_to_visual) {
                 let mut texture_index = texture_views.len() as i32;
                 let id = instruction.texture.get_id();
                 let potential_index = self.lookup.get(&id);
@@ -282,7 +284,7 @@ impl Prepare for ForwardEntityDrawer {
             self.instance_data_buffer.reserve(device, self.instance_data.len());
             self.bind_group = Self::create_bind_group_bindless(device, &self.bind_group_layout, &self.instance_data_buffer, &texture_views)
         } else {
-            for instruction in instructions.entities.iter() {
+            for instruction in instructions.entities.iter().filter(|instruction| instruction.add_to_visual) {
                 self.instance_data.push(InstanceData {
                     world: instruction.world.into(),
                     frame_part_transform: instruction.frame_part_transform.into(),

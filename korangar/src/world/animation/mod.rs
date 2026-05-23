@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use cgmath::{Array, Matrix4, Point3, Transform, Vector2, Vector3, Zero};
+use cgmath::{Array, EuclideanSpace, Matrix4, Point3, Transform, Vector2, Vector3, Zero};
 use korangar_container::Cacheable;
 use korangar_interface::element::StateElement;
 use ragnarok_packets::{ClientTick, Direction, EntityId};
@@ -315,6 +315,7 @@ impl AnimationData {
         instructions: &mut Vec<EntityInstruction>,
         camera: &dyn Camera,
         add_to_picker: bool,
+        add_to_visual: bool,
         entity_id: EntityId,
         entity_position: Point3<f32>,
         animation_state: &AnimationState,
@@ -323,7 +324,16 @@ impl AnimationData {
         scale: f32,
     ) {
         let frame = self.get_frame(animation_state, camera, direction);
-        let world_matrix = self.calculate_world_matrix(camera, frame, entity_position, scale);
+        // For picker proxies (invisible quads that only write to the picker buffer),
+        // scaling the world matrix amplifies the frame_part offset and shifts the hit
+        // area away from the visible sprite. Instead, keep the world matrix at scale=1
+        // and scale each frame part around its own center via frame_part_transform.
+        let picker_proxy = add_to_picker && !add_to_visual && scale != 1.0;
+        let world_matrix = if picker_proxy {
+            self.calculate_world_matrix(camera, frame, entity_position, 1.0)
+        } else {
+            self.calculate_world_matrix(camera, frame, entity_position, scale)
+        };
 
         for (index, frame_part) in frame.frame_parts.iter().enumerate() {
             let animation_index = frame_part.animation_index;
@@ -339,9 +349,20 @@ impl AnimationData {
             let distance = camera.distance_to(position);
             let color = frame_part.color * fade_alpha;
 
+            let frame_part_transform = if picker_proxy {
+                // Scale the unit quad about the part's center (unit quad center is at (0,1,0)).
+                let center = frame_part.affine_matrix.transform_point(Point3::new(0.0, 1.0, 0.0));
+                Matrix4::from_translation(center.to_vec())
+                    * Matrix4::from_scale(scale)
+                    * Matrix4::from_translation(-center.to_vec())
+                    * frame_part.affine_matrix
+            } else {
+                frame_part.affine_matrix
+            };
+
             instructions.push(EntityInstruction {
                 world: world_matrix,
-                frame_part_transform: frame_part.affine_matrix,
+                frame_part_transform,
                 texture_position,
                 texture_size,
                 frame_size,
@@ -352,6 +373,7 @@ impl AnimationData {
                 mirror: frame_part.mirror,
                 entity_id,
                 add_to_picker,
+                add_to_visual,
                 texture: texture.clone(),
                 distance,
             });

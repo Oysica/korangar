@@ -50,7 +50,9 @@ func vs_main(input: EntityVertexInput) -> EntityVertexOutput {
 [[shader("pixel")]]
 func fs_main(input: EntityVertexOutput) -> EntityFragmentOutput {
     let diffuse_color = texture.Sample(nearest_sampler, input.texture_coordinates);
-    if (diffuse_color.a != 1.0) {
+    // Treat anything that's not nearly fully transparent as pickable, so that
+    // anti-aliased sprite edges (e.g. small ground items) are still hoverable.
+    if (diffuse_color.a < 0.1) {
         discard;
     }
 

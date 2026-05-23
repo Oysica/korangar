@@ -858,6 +858,7 @@ impl Common {
                 instructions,
                 camera,
                 add_to_picker,
+                true,
                 self.entity_id,
                 self.world_position,
                 &self.animation_state,

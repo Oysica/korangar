@@ -290,6 +290,9 @@ pub struct EntityInstruction {
     pub mirror: bool,
     pub entity_id: EntityId,
     pub add_to_picker: bool,
+    /// When false the forward pass skips this instance. Used for invisible
+    /// proxy quads that only exist to enlarge the picker hit area.
+    pub add_to_visual: bool,
     pub texture: Arc<Texture>,
     pub distance: f32,
 }

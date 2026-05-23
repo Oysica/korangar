@@ -224,7 +224,7 @@ impl Drawer<{ BindGroupCount::Two }, { ColorAttachmentCount::None }, { DepthAtta
 
 impl Prepare for PointShadowEntityDrawer {
     fn prepare(&mut self, device: &Device, instructions: &RenderInstruction) {
-        let draw_count = instructions.point_shadow_entities.len();
+        let draw_count = instructions.point_shadow_entities.iter().filter(|i| i.add_to_visual).count();
 
         if draw_count == 0 {
             return;
@@ -238,7 +238,7 @@ impl Prepare for PointShadowEntityDrawer {
 
             let mut texture_views = Vec::with_capacity_in(draw_count, &self.bump);
 
-            for instruction in instructions.point_shadow_entities.iter() {
+            for instruction in instructions.point_shadow_entities.iter().filter(|i| i.add_to_visual) {
                 let mut texture_index = texture_views.len() as i32;
                 let id = instruction.texture.get_id();
                 let potential_index = self.lookup.get(&id);
@@ -272,7 +272,7 @@ impl Prepare for PointShadowEntityDrawer {
             self.instance_data_buffer.reserve(device, self.instance_data.len());
             self.bind_group = Self::create_bind_group_bindless(device, &self.bind_group_layout, &self.instance_data_buffer, &texture_views)
         } else {
-            for instruction in instructions.point_shadow_entities.iter() {
+            for instruction in instructions.point_shadow_entities.iter().filter(|i| i.add_to_visual) {
                 self.instance_data.push(InstanceData {
                     world: instruction.world.into(),
                     frame_part_transform: instruction.frame_part_transform.into(),

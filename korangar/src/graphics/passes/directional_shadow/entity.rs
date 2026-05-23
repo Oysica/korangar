@@ -319,9 +319,9 @@ impl Prepare for DirectionalShadowEntityDrawer {
             let mut texture_views = Vec::with_capacity_in(instruction_sum, &self.bump);
 
             for (partition_index, partition_instructions) in instructions.directional_shadow_entities.iter().enumerate() {
-                self.draw_counts[partition_index] = partition_instructions.len();
+                self.draw_counts[partition_index] = partition_instructions.iter().filter(|i| i.add_to_visual).count();
 
-                for instruction in partition_instructions.iter() {
+                for instruction in partition_instructions.iter().filter(|i| i.add_to_visual) {
                     let mut texture_index = texture_views.len() as i32;
                     let id = instruction.texture.get_id();
                     let potential_index = self.lookup.get(&id);
@@ -356,8 +356,9 @@ impl Prepare for DirectionalShadowEntityDrawer {
             self.instance_data_buffer.reserve(device, self.instance_data.len());
             self.bind_group = Self::create_bind_group_bindless(device, &self.bind_group_layout, &self.instance_data_buffer, &texture_views)
         } else {
-            for partition_instructions in instructions.directional_shadow_entities.iter() {
-                for instruction in partition_instructions.iter() {
+            for (partition_index, partition_instructions) in instructions.directional_shadow_entities.iter().enumerate() {
+                self.draw_counts[partition_index] = partition_instructions.iter().filter(|i| i.add_to_visual).count();
+                for instruction in partition_instructions.iter().filter(|i| i.add_to_visual) {
                     self.instance_data.push(InstanceData {
                         world: instruction.world.into(),
                         frame_part_transform: instruction.frame_part_transform.into(),

@@ -83,19 +83,44 @@ impl GroundItem {
     }
 
     pub fn render(&self, instructions: &mut Vec<EntityInstruction>, camera: &dyn Camera, client_tick: ClientTick) {
-        if let Some(animation_data) = self.animation_data.as_ref() {
-            animation_data.render(
-                instructions,
-                camera,
-                true,
-                self.entity_id,
-                self.world_position,
-                &self.animation_state,
-                Direction::South,
-                self.fade_state.calculate_alpha(client_tick),
-                1.0,
-            );
-        }
+        // Scale at which the picker proxy is drawn. Larger than 1 so that the
+        // whole tile is comfortably hoverable while the visible sprite stays
+        // at its native size.
+        const PICKER_PROXY_SCALE: f32 = 2.5;
+
+        let Some(animation_data) = self.animation_data.as_ref() else {
+            return;
+        };
+
+        // Visible sprite at native scale; not added to the picker so the proxy
+        // below controls the hit area.
+        animation_data.render(
+            instructions,
+            camera,
+            false,
+            true,
+            self.entity_id,
+            self.world_position,
+            &self.animation_state,
+            Direction::South,
+            self.fade_state.calculate_alpha(client_tick),
+            1.0,
+        );
+
+        // Invisible picker proxy: enlarged quad that only writes the entity id
+        // into the picker buffer.
+        animation_data.render(
+            instructions,
+            camera,
+            true,
+            false,
+            self.entity_id,
+            self.world_position,
+            &self.animation_state,
+            Direction::South,
+            self.fade_state.calculate_alpha(client_tick),
+            PICKER_PROXY_SCALE,
+        );
     }
 
     pub fn get_entity_id(&self) -> EntityId {
