@@ -4,6 +4,7 @@ pub mod character_slots;
 pub mod hotbar;
 pub mod inventory;
 pub mod localization;
+pub mod minimap;
 pub mod skills;
 pub mod theme;
 
@@ -54,6 +55,7 @@ use crate::settings::{
 use crate::state::character_slots::CharacterSlots;
 use crate::state::hotbar::Hotbar;
 use crate::state::inventory::Inventory;
+use crate::state::minimap::MinimapState;
 use crate::state::skills::SkillTree;
 use crate::state::theme::WorldTheme;
 #[cfg(feature = "debug")]
@@ -143,6 +145,8 @@ pub struct ClientState {
     skill_tree_window: SkillTreeWindowState,
     /// Internal state of the drop-item prompt window.
     drop_item_prompt: DropItemPromptState,
+    /// Active map's minimap texture + tile dimensions.
+    minimap: MinimapState,
 
     /// All entities on the map.
     entities: Vec<Entity>,
@@ -390,6 +394,7 @@ impl ClientState {
             dialog_window,
             skill_tree_window,
             drop_item_prompt: DropItemPromptState::default(),
+            minimap: MinimapState::default(),
             entities: Vec::new(),
             dead_entities: Vec::new(),
             ground_items: Vec::new(),

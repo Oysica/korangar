@@ -1319,6 +1319,7 @@ impl Client {
                 }
                 NetworkEvent::ChangeMap { map_name, position } => {
                     self.map = None;
+                    self.client_state.follow_mut(client_state().minimap()).clear();
                     self.particle_holder.clear();
                     self.effect_holder.clear();
                     self.point_light_manager.clear();
@@ -2661,6 +2662,22 @@ impl Client {
                                 self.player_camera.set_focus_point(player.get_position());
                             }
 
+                            // Bake the minimap texture for the newly loaded map and surface it
+                            // through ClientState so the minimap window can render it.
+                            let minimap_image = map.build_minimap_image();
+                            let minimap_width = map.width_in_tiles();
+                            let minimap_height = map.height_in_tiles();
+                            let minimap_texture = self.texture_loader.create_color("minimap", minimap_image, false);
+                            self.client_state
+                                .follow_mut(client_state().minimap())
+                                .set(minimap_texture, minimap_width, minimap_height);
+                            if !self.interface.is_window_with_class_open(WindowClass::Minimap) {
+                                self.interface.open_window(MinimapWindow::new(
+                                    client_state().minimap(),
+                                    this_player(),
+                                ));
+                            }
+
                             self.directional_shadow_camera.set_level_bound(map.get_level_bound());
                             let _ = self.networking_system.map_loaded();
                         }
@@ -3741,6 +3758,10 @@ impl ApplicationHandler for Client {
                 let backend_name = self.graphics_engine.get_backend_name();
                 window.set_title(&format!("{CLIENT_NAME} ({})", str::to_uppercase(&backend_name)));
                 window.set_cursor_visible(false);
+                // Enable IME so users can type CJK / non-Latin characters via
+                // the operating system's input method (committed text arrives
+                // via `WindowEvent::Ime(Ime::Commit(..))`).
+                window.set_ime_allowed(true);
 
                 self.window = Some(window);
 
@@ -3826,10 +3847,19 @@ impl ApplicationHandler for Client {
                     self.input_system.update_keyboard(keycode, event.state);
                 }
 
-                // TODO: NHA We should also support IME in the long term (winit::event::Ime)
                 if let Some(text) = event.text
                     && event.state.is_pressed()
                 {
+                    for char in text.chars() {
+                        self.input_system.buffer_character(char);
+                    }
+                }
+            }
+            WindowEvent::Ime(ime) => {
+                // The OS IME (Microsoft Pinyin, ChewIng, Mozc, etc.) delivers
+                // composed characters via Ime::Commit. Plain `KeyboardInput`
+                // events do not carry the final composed text on Windows.
+                if let winit::event::Ime::Commit(text) = ime {
                     for char in text.chars() {
                         self.input_system.buffer_character(char);
                     }

@@ -270,6 +270,37 @@ impl Map {
         self.tiles.get(position.x as usize + position.y as usize * self.width as usize)
     }
 
+    pub fn width_in_tiles(&self) -> u16 {
+        self.width
+    }
+
+    pub fn height_in_tiles(&self) -> u16 {
+        self.height
+    }
+
+    /// Build a small bitmap representing tile walkability. Walkable tiles are
+    /// light, water tiles are blue, blocked tiles are dark. The Y axis is
+    /// flipped so the bitmap matches what the player sees from above.
+    pub fn build_minimap_image(&self) -> image::RgbaImage {
+        let width = self.width as u32;
+        let height = self.height as u32;
+        let mut image = image::RgbaImage::new(width.max(1), height.max(1));
+        for y in 0..height {
+            for x in 0..width {
+                let tile = &self.tiles[(y * width + x) as usize];
+                let pixel = if tile.flags.contains(ragnarok_formats::map::TileFlags::WATER) {
+                    image::Rgba([60, 90, 180, 255])
+                } else if tile.flags.contains(ragnarok_formats::map::TileFlags::WALKABLE) {
+                    image::Rgba([200, 200, 200, 255])
+                } else {
+                    image::Rgba([40, 40, 40, 255])
+                };
+                image.put_pixel(x, height - 1 - y, pixel);
+            }
+        }
+        image
+    }
+
     pub fn background_music_track_name(&self) -> Option<&str> {
         self.background_music_track_name.as_deref()
     }

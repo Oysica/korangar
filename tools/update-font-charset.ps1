@@ -67,14 +67,16 @@ Write-Host "Found $($chars.Count) unique non-ASCII characters."
 
 # msdf-atlas-gen charset file format: a quoted literal string and numeric
 # ranges separated by commas. We always include the ASCII printable range
-# [32, 126] for Latin glyphs.
+# [32, 126] for Latin glyphs, plus the full CJK Unified Ideographs block
+# [0x4e00, 0x9fff] (~21,000 chars) so any Chinese character a user might
+# type in chat renders without a regen.
 $utf8NoBom = [System.Text.UTF8Encoding]::new($false)
-$charsetContent = "`"$joined`", [32, 126]`n"
+$charsetContent = "`"$joined`", [32, 126], [0x4e00, 0x9fff]`n"
 [System.IO.File]::WriteAllText($charset, $charsetContent, $utf8NoBom)
-Write-Host "Wrote charset to $charset"
+Write-Host "Wrote charset to $charset (explicit + full CJK Unified Ideographs)"
 
-Write-Host "Running msdf-atlas-gen..."
-& $tool -charset $charset -pxrange 6 -size 32 -yorigin top -dimensions 8192 4096 -type msdf -format png -font $ttf -csv $csv -imageout $png
+Write-Host "Running msdf-atlas-gen (this can take a few minutes for ~21K glyphs)..."
+& $tool -charset $charset -pxrange 6 -size 32 -yorigin top -dimensions 8192 8192 -type msdf -format png -font $ttf -csv $csv -imageout $png
 if ($LASTEXITCODE -ne 0) { throw "msdf-atlas-gen failed with exit code $LASTEXITCODE" }
 
 if (Test-Path $gz) { Remove-Item $gz }

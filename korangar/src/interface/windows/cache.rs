@@ -85,6 +85,29 @@ fn character_overview_size() -> ScreenSize {
     }
 }
 
+/// Size (width = height) of the top-right minimap in pixels. Matches the
+/// `MINIMAP_DISPLAY_SIZE` constant in `minimap.rs`.
+const MINIMAP_SIZE: f32 = 200.0;
+/// Margin between the minimap and the screen edges.
+const MINIMAP_EDGE_MARGIN: f32 = 8.0;
+
+fn minimap_anchor() -> Anchor<ClientState> {
+    Anchor::pinned(
+        AnchorPoint::TopRight,
+        ScreenPosition {
+            left: -(MINIMAP_SIZE + MINIMAP_EDGE_MARGIN),
+            top: MINIMAP_EDGE_MARGIN,
+        },
+    )
+}
+
+fn minimap_size() -> ScreenSize {
+    ScreenSize {
+        width: MINIMAP_SIZE,
+        height: MINIMAP_SIZE,
+    }
+}
+
 #[derive(Serialize, Deserialize)]
 pub struct WindowState {
     pub anchor: Anchor<ClientState>,
@@ -154,11 +177,17 @@ impl korangar_interface::application::WindowCache<ClientState> for WindowCache {
         if matches!(class, WindowClass::CharacterOverview) {
             return Some((character_overview_anchor(), character_overview_size()));
         }
+        if matches!(class, WindowClass::Minimap) {
+            return Some((minimap_anchor(), minimap_size()));
+        }
         self.entries.get(&class).map(|entry| (entry.anchor, entry.size))
     }
 
     fn register_window(&mut self, class: WindowClass, anchor: Anchor<ClientState>, size: ScreenSize) {
-        if matches!(class, WindowClass::ExperienceBar | WindowClass::Chat | WindowClass::CharacterOverview) {
+        if matches!(
+            class,
+            WindowClass::ExperienceBar | WindowClass::Chat | WindowClass::CharacterOverview | WindowClass::Minimap
+        ) {
             return;
         }
         if let Some(entry) = self.entries.get_mut(&class) {
@@ -171,7 +200,10 @@ impl korangar_interface::application::WindowCache<ClientState> for WindowCache {
     }
 
     fn update_anchor(&mut self, class: WindowClass, anchor: Anchor<ClientState>) {
-        if matches!(class, WindowClass::ExperienceBar | WindowClass::Chat | WindowClass::CharacterOverview) {
+        if matches!(
+            class,
+            WindowClass::ExperienceBar | WindowClass::Chat | WindowClass::CharacterOverview | WindowClass::Minimap
+        ) {
             return;
         }
         if let Some(entry) = self.entries.get_mut(&class) {
@@ -180,7 +212,10 @@ impl korangar_interface::application::WindowCache<ClientState> for WindowCache {
     }
 
     fn update_size(&mut self, class: WindowClass, size: ScreenSize) {
-        if matches!(class, WindowClass::ExperienceBar | WindowClass::Chat | WindowClass::CharacterOverview) {
+        if matches!(
+            class,
+            WindowClass::ExperienceBar | WindowClass::Chat | WindowClass::CharacterOverview | WindowClass::Minimap
+        ) {
             return;
         }
         if let Some(entry) = self.entries.get_mut(&class) {

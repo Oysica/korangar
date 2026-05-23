@@ -296,7 +296,17 @@ where
         Callback: PacketCallback,
     {
         let mut stream = TcpStream::connect(address).await.map_err(|_| NetworkTaskError::FailedToConnect)?;
-        let mut interval = tokio::time::interval(ping_frequency);
+        // `tokio::time::interval` fires the first tick immediately, which races
+        // with the initial connect packet in `select!` and can let a ping land
+        // in the same TCP segment as the connect packet. rAthena-derived
+        // servers (PandasWS) parse the WantToConnection packet by comparing
+        // RFIFOREST against packet_db[cmd].len, so any extra bytes cause an
+        // "unknown connect packet" rejection. Delay the first ping by a full
+        // interval so the connect packet always lands by itself.
+        let mut interval = tokio::time::interval_at(
+            tokio::time::Instant::now() + ping_frequency,
+            ping_frequency,
+        );
         let mut buffer = [0u8; 8192];
         let mut cut_off_buffer_base = 0;
         let mut events = Vec::new();
