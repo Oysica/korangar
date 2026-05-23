@@ -41,8 +41,8 @@ use crate::graphics::RenderOptions;
 use crate::graphics::{Color, CornerDiameter, ScreenClip, ScreenPosition, ScreenSize, ShadowPadding};
 use crate::input::{InputEvent, MouseInputMode};
 use crate::interface::windows::{
-    ChatWindowState, DialogWindowState, FriendListWindowState, LoginWindowState, LoginWindowStatePathExt, SkillTreeWindowState,
-    WindowCache, WindowClass,
+    ChatWindowState, DialogWindowState, DropItemPromptState, FriendListWindowState, LoginWindowState, LoginWindowStatePathExt,
+    SkillTreeWindowState, WindowCache, WindowClass,
 };
 #[cfg(feature = "debug")]
 use crate::interface::windows::{ProfilerWindowState, ThemeInspectorWindowState};
@@ -141,6 +141,8 @@ pub struct ClientState {
     dialog_window: DialogWindowState,
     /// Internal state of the skill tree window.
     skill_tree_window: SkillTreeWindowState,
+    /// Internal state of the drop-item prompt window.
+    drop_item_prompt: DropItemPromptState,
 
     /// All entities on the map.
     entities: Vec<Entity>,
@@ -387,6 +389,7 @@ impl ClientState {
             friend_list_window,
             dialog_window,
             skill_tree_window,
+            drop_item_prompt: DropItemPromptState::default(),
             entities: Vec::new(),
             dead_entities: Vec::new(),
             ground_items: Vec::new(),

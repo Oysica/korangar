@@ -59,19 +59,18 @@ where
     }
 }
 
-/// Right-click handler that drops the entire stack of the targeted inventory
-/// slot. Only registered for inventory item slots.
-struct DropItemHandler<P> {
+/// Right-click handler that opens the item details window.
+struct ItemInfoHandler<P> {
     item_path: P,
 }
 
-impl<P> DropItemHandler<P> {
+impl<P> ItemInfoHandler<P> {
     fn new(item_path: P) -> Self {
         Self { item_path }
     }
 }
 
-impl<P> ClickHandler<ClientState> for DropItemHandler<P>
+impl<P> ClickHandler<ClientState> for ItemInfoHandler<P>
 where
     P: Path<ClientState, InventoryItem<ResourceMetadata>, false>,
 {
@@ -79,15 +78,7 @@ where
         let Some(item) = state.try_get(&self.item_path) else {
             return;
         };
-        let amount = match &item.details {
-            InventoryItemDetails::Regular { amount, .. } => *amount,
-            // Equippable items always drop as a single piece.
-            InventoryItemDetails::Equippable { .. } => 1,
-        };
-        queue.queue(InputEvent::DropItem {
-            index: item.index,
-            amount,
-        });
+        queue.queue(InputEvent::OpenItemInfo { item: item.clone() });
     }
 }
 
@@ -112,8 +103,7 @@ where
 pub struct ItemBox<A> {
     item_path: A,
     handler: ItemBoxHandler<A>,
-    drop_handler: DropItemHandler<A>,
-    source: ItemSource,
+    info_handler: ItemInfoHandler<A>,
     amount_display: AmountDisplay,
 }
 
@@ -128,8 +118,7 @@ where
         Self {
             item_path,
             handler: ItemBoxHandler::new(item_path, source),
-            drop_handler: DropItemHandler::new(item_path),
-            source,
+            info_handler: ItemInfoHandler::new(item_path),
             amount_display: AmountDisplay::default(),
         }
     }
@@ -214,9 +203,7 @@ where
 
             if is_hovered {
                 layout.register_click_handler(MouseButton::Left, &self.handler);
-                if matches!(self.source, ItemSource::Inventory) {
-                    layout.register_click_handler(MouseButton::Right, &self.drop_handler);
-                }
+                layout.register_click_handler(MouseButton::Right, &self.info_handler);
             }
 
             if matches!(item.details, InventoryItemDetails::Regular { .. }) {

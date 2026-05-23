@@ -59,7 +59,7 @@ use korangar_debug::logging::{Colorize, print_debug};
 use korangar_debug::profile_block;
 #[cfg(feature = "debug")]
 use korangar_debug::profiling::Profiler;
-use korangar_interface::Interface;
+use korangar_interface::{Interface, MouseMode};
 use korangar_interface::layout::MouseButton;
 use korangar_networking::{
     DisconnectReason, HotkeyState, LoginServerLoginData, MessageColor, NetworkEvent, NetworkEventBuffer, NetworkingSystem, SellItem,
@@ -70,8 +70,8 @@ use networking::{PacketHistory, PacketHistoryCallback};
 #[cfg(not(feature = "debug"))]
 use ragnarok_packets::handler::NoPacketCallback;
 use ragnarok_packets::{
-    AttackRange, BuyShopItemsResult, CharacterServerInformation, Direction, DisappearanceReason, HotbarSlot, SellItemsResult, SkillId,
-    SkillLevel, SkillType, TilePosition, UnitId, WorldPosition,
+    AttackRange, BuyShopItemsResult, CharacterServerInformation, Direction, DisappearanceReason, HotbarSlot, InventoryIndex,
+    SellItemsResult, SkillId, SkillLevel, SkillType, TilePosition, UnitId, WorldPosition,
 };
 use renderer::InterfaceRenderer;
 use rust_state::{ManuallyAssertExt, State};
@@ -2208,6 +2208,34 @@ impl Client {
                 InputEvent::DropItem { index, amount } => {
                     let _ = self.networking_system.request_drop_item(index, amount);
                 }
+                InputEvent::OpenItemInfo { item } => {
+                    self.interface.close_window_with_class(WindowClass::ItemInfo);
+                    self.interface.open_window(ItemInfoWindow::new(item));
+                }
+                InputEvent::OpenDropPrompt { index, max_amount } => {
+                    self.client_state
+                        .follow_mut(client_state().drop_item_prompt())
+                        .set(index, max_amount);
+                    self.interface.close_window_with_class(WindowClass::DropItemPrompt);
+                    self.interface
+                        .open_window(DropItemPromptWindow::new(client_state().drop_item_prompt()));
+                }
+                InputEvent::ConfirmDropPrompt => {
+                    let prompt_path = client_state().drop_item_prompt();
+                    let parsed = self
+                        .client_state
+                        .follow(prompt_path.amount_text())
+                        .parse::<u16>()
+                        .unwrap_or(0);
+                    let max_amount = (*self.client_state.follow(prompt_path.max_amount())).max(1);
+                    let amount = parsed.clamp(1, max_amount);
+                    let index = InventoryIndex(*self.client_state.follow(prompt_path.inventory_index()));
+                    let _ = self.networking_system.request_drop_item(index, amount);
+                    self.interface.close_window_with_class(WindowClass::DropItemPrompt);
+                }
+                InputEvent::CancelDropPrompt => {
+                    self.interface.close_window_with_class(WindowClass::DropItemPrompt);
+                }
                 InputEvent::MoveSkill {
                     source,
                     destination,
@@ -3221,6 +3249,18 @@ impl Client {
                 let mouse_mode = self.interface.get_mouse_mode();
                 let is_mouse_mode_default = mouse_mode.is_default();
                 let last_walking_destination = mouse_mode.walk_destination();
+                // Capture the currently held inventory item (if any) so the drag-out drop
+                // detection can fire without holding a borrow on `self.interface` while
+                // the interface frame is still alive.
+                let held_inventory_item = match mouse_mode {
+                    MouseMode::Custom {
+                        mode: MouseInputMode::MoveItem {
+                            source: ItemSource::Inventory,
+                            item,
+                        },
+                    } => Some(item.clone()),
+                    _ => None,
+                };
 
                 let mut interface_frame = {
                     #[cfg(feature = "debug")]
@@ -3323,6 +3363,28 @@ impl Client {
                     }
 
                     if input_report.mouse_button_released {
+                        // Detect drag-out-to-world: if the user releases the mouse outside
+                        // any window while holding an inventory item, treat it as a drop
+                        // intent. amount == 1 (or equippable) drops immediately, otherwise
+                        // we open the quantity prompt window.
+                        if !is_interface_hovered
+                            && let Some(item) = held_inventory_item.as_ref()
+                        {
+                            match &item.details {
+                                korangar_networking::InventoryItemDetails::Regular { amount, .. } if *amount > 1 => {
+                                    self.input_event_buffer.push(InputEvent::OpenDropPrompt {
+                                        index: item.index,
+                                        max_amount: *amount,
+                                    });
+                                }
+                                _ => {
+                                    self.input_event_buffer.push(InputEvent::DropItem {
+                                        index: item.index,
+                                        amount: 1,
+                                    });
+                                }
+                            }
+                        }
                         interface_frame.drop(&self.client_state);
                     }
 

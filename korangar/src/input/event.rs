@@ -162,6 +162,19 @@ pub enum InputEvent {
         /// Stack count to drop.
         amount: u16,
     },
+    /// Show the item details window for an inventory slot.
+    OpenItemInfo {
+        item: InventoryItem<ResourceMetadata>,
+    },
+    /// Open the drop-quantity prompt for an inventory item that has amount > 1.
+    OpenDropPrompt {
+        index: InventoryIndex,
+        max_amount: u16,
+    },
+    /// Confirm the currently open drop-quantity prompt.
+    ConfirmDropPrompt,
+    /// Cancel the currently open drop-quantity prompt.
+    CancelDropPrompt,
     /// Move a skill in the user interface.
     MoveSkill {
         /// Source of the move.
