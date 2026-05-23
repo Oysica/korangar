@@ -538,12 +538,16 @@ where
             fn correct_element_size(&mut self, state: &State<ClientState>) {
                 let character_slots = state.get(&self.character_slots);
                 let slot_count = character_slots.get_slot_count();
+                // Ceiling division so any slot_count > 0 (including 3 from
+                // PandasWS' MIN_CHARS) still renders a row. Empty trailing
+                // slots in the last row will just show as create-character
+                // placeholders.
+                let row_count = slot_count.div_ceil(5);
 
-                // FIX: Very broken check
-                if self.item_boxes.len() != slot_count / 5 {
+                if self.item_boxes.len() != row_count {
                     self.item_boxes.clear();
 
-                    for row in 0..slot_count / 5 {
+                    for row in 0..row_count {
                         let slot = row * 5;
                         let path = self.character_slots;
 

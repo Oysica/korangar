@@ -2209,8 +2209,9 @@ impl Client {
                     let _ = self.networking_system.request_drop_item(index, amount);
                 }
                 InputEvent::OpenItemInfo { item } => {
+                    let description = ItemInfo::description(&self.library, item.item_id, item.is_identified()).to_vec();
                     self.interface.close_window_with_class(WindowClass::ItemInfo);
-                    self.interface.open_window(ItemInfoWindow::new(item));
+                    self.interface.open_window(ItemInfoWindow::new(item, description));
                 }
                 InputEvent::OpenDropPrompt { index, max_amount } => {
                     self.client_state

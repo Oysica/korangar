@@ -10,11 +10,12 @@ use crate::world::ResourceMetadata;
 
 pub struct ItemInfoWindow {
     item: InventoryItem<ResourceMetadata>,
+    description: Vec<String>,
 }
 
 impl ItemInfoWindow {
-    pub fn new(item: InventoryItem<ResourceMetadata>) -> Self {
-        Self { item }
+    pub fn new(item: InventoryItem<ResourceMetadata>, description: Vec<String>) -> Self {
+        Self { item, description }
     }
 }
 
@@ -37,6 +38,15 @@ impl CustomWindow<ClientState> for ItemInfoWindow {
             InventoryItemDetails::Equippable { .. } => "可裝備物品".to_string(),
         };
 
+        // Ragnarok item descriptions embed ^RRGGBB color codes. The text widget
+        // does not parse them, so strip them out for a clean read.
+        let description_text: String = self
+            .description
+            .iter()
+            .map(|line| strip_color_codes(line))
+            .collect::<Vec<_>>()
+            .join("\n");
+
         window! {
             title: "道具說明",
             class: Self::window_class(),
@@ -58,7 +68,30 @@ impl CustomWindow<ClientState> for ItemInfoWindow {
                     color: Color::rgb_u8(160, 160, 160),
                     overflow_behavior: OverflowBehavior::Shrink,
                 },
+                text! {
+                    text: description_text,
+                    color: Color::rgb_u8(200, 200, 200),
+                    overflow_behavior: OverflowBehavior::LineBreak,
+                },
             ),
         }
     }
+}
+
+fn strip_color_codes(input: &str) -> String {
+    let mut output = String::with_capacity(input.len());
+    let mut chars = input.chars().peekable();
+    while let Some(ch) = chars.next() {
+        if ch == '^' {
+            let buffered: String = chars.clone().take(6).collect();
+            if buffered.len() == 6 && buffered.chars().all(|c| c.is_ascii_hexdigit()) {
+                for _ in 0..6 {
+                    chars.next();
+                }
+                continue;
+            }
+        }
+        output.push(ch);
+    }
+    output
 }

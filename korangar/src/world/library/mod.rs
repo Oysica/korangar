@@ -10,7 +10,7 @@ mod skill_tree;
 
 use std::hash::Hash;
 
-use encoding_rs::EUC_KR;
+use encoding_rs::{BIG5, EUC_KR};
 use hashbrown::HashMap;
 use korangar_loaders::FileLoader;
 use mlua::Lua;
@@ -115,9 +115,20 @@ pub trait Table {
 }
 
 fn fix_encoding(broken: String) -> String {
-    let bytes: Vec<u8> = broken.chars().map(|char| char as u8).collect();
-    match EUC_KR.decode_without_bom_handling_and_without_replacement(&bytes) {
-        None => broken.to_string(),
-        Some(char) => char.to_string(),
+    // mlua hands us strings as one Lua byte per char, so flatten back to bytes.
+    let bytes: Vec<u8> = broken.chars().map(|c| c as u8).collect();
+
+    // Auto-detect: try UTF-8 first (modern translated clients), then BIG5
+    // (Traditional Chinese), then EUC-KR (Korean original). Fall back to the
+    // raw input if nothing decodes cleanly.
+    if let Ok(text) = std::str::from_utf8(&bytes) {
+        return text.to_string();
     }
+    if let Some(text) = BIG5.decode_without_bom_handling_and_without_replacement(&bytes) {
+        return text.into_owned();
+    }
+    if let Some(text) = EUC_KR.decode_without_bom_handling_and_without_replacement(&bytes) {
+        return text.into_owned();
+    }
+    broken
 }

@@ -530,15 +530,13 @@ pub struct CharacterServerLoginPacket {
 /// information.
 #[derive(Debug, Clone, Packet, ClientPacket, MapServer)]
 #[cfg_attr(feature = "interface", derive(rust_state::RustState, korangar_interface::element::StateElement))]
-#[header(0x0436)]
+#[header(0x0888)]
 pub struct MapServerLoginPacket {
     pub account_id: AccountId,
     pub character_id: CharacterId,
     pub login_id1: u32,
     pub client_tick: ClientTick,
     pub sex: Sex,
-    #[new_default]
-    pub unknown: [u8; 4],
 }
 
 #[derive(Debug, Clone, Packet, ServerPacket, MapServer)]

@@ -1,9 +1,10 @@
-# Scans the korangar source for CJK characters used in UI strings, merges them
-# with the existing font atlas charset, and regenerates the MSDF font atlas
-# (NotoSansTC.png + NotoSansTC.csv.gz) so all referenced characters render.
+# Scans the korangar source for characters used in UI strings, merges them
+# with characters dumped from iteminfo.lub, and regenerates the MSDF font
+# atlas (NotoSansTC.png + NotoSansTC.csv.gz) so all referenced characters
+# render in-game.
 #
 # Usage:
-#   pwsh tools/update-font-charset.ps1
+#   .\tools\update-font-charset.ps1
 
 $ErrorActionPreference = "Stop"
 
@@ -16,55 +17,66 @@ $png      = Join-Path $fontDir "NotoSansTC.png"
 $gz       = "$csv.gz"
 $charset  = Join-Path $fontDir "charset.txt"
 
-# Scan paths for CJK Unified Ideographs (U+4E00..U+9FFF) used anywhere in source
-# strings (UI labels, localization, Rust source, etc.).
 $scanRoots = @(
     (Join-Path $repoRoot "korangar/src"),
     (Join-Path $repoRoot "korangar/archive/data/languages"),
     (Join-Path $repoRoot "korangar-interface/src")
 )
 
-Write-Host "Scanning source for CJK characters..."
+Write-Host "Scanning source for non-ASCII characters..."
 
 $chars = [System.Collections.Generic.HashSet[char]]::new()
-$cjkPattern = "[" + [char]0x4e00 + "-" + [char]0x9fff + "]"
-$cjk = [regex]$cjkPattern
+# Match every character above ASCII printable that is not a surrogate or
+# private-use codepoint. Covers CJK ideographs, Hangul, kana, full-width
+# punctuation, arrows, and miscellaneous symbols in one shot.
+$pattern = "[" + [char]0x00a1 + "-" + [char]0xd7ff + [char]0xe000 + "-" + [char]0xffef + "]"
+$rx = [regex]$pattern
 
 foreach ($root in $scanRoots) {
     if (-not (Test-Path $root)) { continue }
     Get-ChildItem -Path $root -Recurse -File -Include *.rs,*.ron,*.toml | ForEach-Object {
         $content = [System.IO.File]::ReadAllText($_.FullName, [System.Text.Encoding]::UTF8)
-        foreach ($m in $cjk.Matches($content)) {
+        foreach ($m in $rx.Matches($content)) {
             [void]$chars.Add([char]$m.Value[0])
         }
     }
 }
 
-# Merge with whatever was already baked so we never lose previously supported glyphs.
+# Keep whatever was already baked so we never lose previously supported glyphs.
 if (Test-Path $charset) {
     $existing = [System.IO.File]::ReadAllText($charset, [System.Text.Encoding]::UTF8)
-    foreach ($m in $cjk.Matches($existing)) {
+    foreach ($m in $rx.Matches($existing)) {
         [void]$chars.Add([char]$m.Value[0])
     }
+}
+
+# Merge characters dumped from iteminfo.lub by KORANGAR_DUMP_ITEM_CHARS=1.
+$itemDump = Join-Path $repoRoot "iteminfo-charset.txt"
+if (Test-Path $itemDump) {
+    $dumped = [System.IO.File]::ReadAllText($itemDump, [System.Text.Encoding]::UTF8)
+    foreach ($m in $rx.Matches($dumped)) {
+        [void]$chars.Add([char]$m.Value[0])
+    }
+    Write-Host "Merged characters from iteminfo dump ($itemDump)"
 }
 
 $sorted = $chars | Sort-Object
 $joined = -join $sorted
 
-Write-Host "Found $($chars.Count) unique CJK characters."
+Write-Host "Found $($chars.Count) unique non-ASCII characters."
 
-# msdf-atlas-gen charset format: quoted literal string + numeric ranges.
+# msdf-atlas-gen charset file format: a quoted literal string and numeric
+# ranges separated by commas. We always include the ASCII printable range
+# [32, 126] for Latin glyphs.
 $utf8NoBom = [System.Text.UTF8Encoding]::new($false)
 $charsetContent = "`"$joined`", [32, 126]`n"
 [System.IO.File]::WriteAllText($charset, $charsetContent, $utf8NoBom)
 Write-Host "Wrote charset to $charset"
 
-# Regenerate the MSDF atlas.
 Write-Host "Running msdf-atlas-gen..."
 & $tool -charset $charset -pxrange 6 -size 32 -yorigin top -dimensions 8192 4096 -type msdf -format png -font $ttf -csv $csv -imageout $png
 if ($LASTEXITCODE -ne 0) { throw "msdf-atlas-gen failed with exit code $LASTEXITCODE" }
 
-# Re-compress the CSV alongside the PNG, matching the format expected by the loader.
 if (Test-Path $gz) { Remove-Item $gz }
 Add-Type -AssemblyName System.IO.Compression
 $inStream  = [System.IO.File]::OpenRead($csv)
