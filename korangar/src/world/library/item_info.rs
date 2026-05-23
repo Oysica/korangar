@@ -40,15 +40,22 @@ fn read_lua_string(item_table: &mlua::Table, field: &str) -> Option<String> {
 }
 
 fn decode_lua_string_bytes(bytes: &[u8]) -> String {
+    // iteminfo files commonly mix encodings:
+    //   - identifiedDisplayName / descriptions in UTF-8 (translated text)
+    //   - identifiedResourceName as EUC-KR bytes (referencing the Korean BMP
+    //     filenames baked into the original RO GRF)
+    // Try UTF-8 first (the modern default), then EUC-KR (RO's native encoding
+    // for resource names), and only fall back to BIG5 for legacy TC clients
+    // that re-encoded everything.
     if let Ok(text) = std::str::from_utf8(bytes) {
         return text.to_string();
     }
-    if let Some(text) = encoding_rs::BIG5
+    if let Some(text) = encoding_rs::EUC_KR
         .decode_without_bom_handling_and_without_replacement(bytes)
     {
         return text.into_owned();
     }
-    if let Some(text) = encoding_rs::EUC_KR
+    if let Some(text) = encoding_rs::BIG5
         .decode_without_bom_handling_and_without_replacement(bytes)
     {
         return text.into_owned();

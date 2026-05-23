@@ -208,6 +208,13 @@ impl AsyncLoader {
             is_identified,
         });
         let full_path = format!("유저인터페이스\\item\\{resource_name}.bmp");
+        if std::env::var("KORANGAR_DEBUG_TEXTURE_PATHS").is_ok() {
+            let rn = resource_name.to_string();
+            eprintln!(
+                "[ITEM_LOOKUP] item_id={} identified={} resource_name={:?} resource_bytes={:02x?}",
+                item.item_id.0, is_identified, rn, rn.as_bytes()
+            );
+        }
         let texture = self.request_item_sprite_load(item.item_id, &full_path, ImageType::Color);
         let name = self
             .library

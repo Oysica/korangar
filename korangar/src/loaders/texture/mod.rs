@@ -556,9 +556,18 @@ impl TextureLoader {
             }
         };
 
-        let file_data = match self.game_file_loader.get(&format!("data\\texture\\{path}")) {
-            Ok(file_data) => file_data,
+        let full_path = format!("data\\texture\\{path}");
+        let file_data = match self.game_file_loader.get(&full_path) {
+            Ok(file_data) => {
+                if std::env::var("KORANGAR_DEBUG_TEXTURE_PATHS").is_ok() {
+                    eprintln!("[TEXTURE_OK] {}", full_path);
+                }
+                file_data
+            }
             Err(_error) => {
+                if std::env::var("KORANGAR_DEBUG_TEXTURE_PATHS").is_ok() {
+                    eprintln!("[TEXTURE_MISS] {}", full_path);
+                }
                 #[cfg(feature = "debug")]
                 {
                     print_debug!("Failed to load image: {:?}", _error);
