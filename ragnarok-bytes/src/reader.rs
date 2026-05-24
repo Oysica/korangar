@@ -80,10 +80,31 @@ impl<'a> ByteReader<'a> {
     }
 
     pub fn decode_string(&mut self, bytes: &[u8]) -> String {
-        match self.encoding.decode_without_bom_handling_and_without_replacement(bytes) {
-            None => bytes.iter().map(|byte| *byte as char).collect(),
-            Some(chars) => chars.to_string(),
+        // Try the configured encoding first.
+        if let Some(text) = self
+            .encoding
+            .decode_without_bom_handling_and_without_replacement(bytes)
+        {
+            return text.into_owned();
         }
+        // Multi-encoding fallback so player names, item names and other
+        // strings that may have been written in a different encoding (e.g.
+        // when the server's locale changed or the DB column charset doesn't
+        // match) still decode cleanly. Try UTF-8 → BIG5 → EUC-KR before
+        // resorting to the lossy byte-cast.
+        for encoding in [
+            encoding_rs::UTF_8,
+            encoding_rs::BIG5,
+            encoding_rs::EUC_KR,
+        ] {
+            if encoding == self.encoding {
+                continue;
+            }
+            if let Some(text) = encoding.decode_without_bom_handling_and_without_replacement(bytes) {
+                return text.into_owned();
+            }
+        }
+        bytes.iter().map(|byte| *byte as char).collect()
     }
 
     pub fn get_offset(&self) -> usize {

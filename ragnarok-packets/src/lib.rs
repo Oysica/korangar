@@ -1570,8 +1570,12 @@ pub struct ItemPickupRequestPacket {
 #[header(0x00F3)]
 #[variable_length]
 pub struct GlobalMessagePacket {
-    #[length_remaining_off_by_one]
-    pub message: String,
+    // Raw bytes so the player's name keeps the exact byte sequence the server
+    // has in `sd->status.name`. Going through `String` + UTF-8 re-encoding can
+    // turn EUC-KR / BIG5 / Latin-cast characters into different byte sequences
+    // and trip Pandas' `strncmp(name, sd->status.name, ...)` check.
+    #[length_remaining]
+    pub message: Vec<u8>,
 }
 
 #[derive(Debug, Clone, Packet, ServerPacket, MapServer)]

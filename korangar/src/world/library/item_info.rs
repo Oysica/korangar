@@ -23,30 +23,50 @@ fn read_description_lines(item_table: &mlua::Table, field: &str) -> Vec<String> 
     table
         .sequence_values::<mlua::String>()
         .flatten()
-        .map(|raw| decode_lua_string_bytes(&raw.as_bytes()))
+        .map(|raw| decode_display_text(&raw.as_bytes()))
         .collect()
 }
 
-/// Reads a Lua field as a raw byte string and decodes it via BIG5
-/// (with EUC-KR and UTF-8 as fallbacks). Required because mlua's
-/// `Table::get::<String>` rejects values that are not valid UTF-8 —
-/// which is the common case for the EUC-KR / BIG5 encoded strings
-/// shipped in Ragnarok GRFs.
-fn read_lua_string(item_table: &mlua::Table, field: &str) -> Option<String> {
+/// Reads a Lua display-name field (item names, descriptions). TC client
+/// iteminfo files paste BIG5 Chinese into these fields, so BIG5 takes
+/// priority over EUC-KR.
+fn read_lua_display_string(item_table: &mlua::Table, field: &str) -> Option<String> {
     let value = item_table.get::<mlua::String>(field).ok()?;
     let bytes = value.as_bytes();
-    let decoded = decode_lua_string_bytes(&bytes);
+    let decoded = decode_display_text(&bytes);
     if decoded.is_empty() { None } else { Some(decoded) }
 }
 
-fn decode_lua_string_bytes(bytes: &[u8]) -> String {
-    // iteminfo files commonly mix encodings:
-    //   - identifiedDisplayName / descriptions in UTF-8 (translated text)
-    //   - identifiedResourceName as EUC-KR bytes (referencing the Korean BMP
-    //     filenames baked into the original RO GRF)
-    // Try UTF-8 first (the modern default), then EUC-KR (RO's native encoding
-    // for resource names), and only fall back to BIG5 for legacy TC clients
-    // that re-encoded everything.
+/// Reads a Lua resource-name field (BMP / sprite filenames). The original RO
+/// resource names are Korean, encoded as UTF-8 in modern lubs and EUC-KR in
+/// older ones. BIG5 is intentionally last so a BIG5-looking byte sequence
+/// doesn't accidentally swallow what should have been an EUC-KR Korean
+/// filename.
+fn read_lua_resource_string(item_table: &mlua::Table, field: &str) -> Option<String> {
+    let value = item_table.get::<mlua::String>(field).ok()?;
+    let bytes = value.as_bytes();
+    let decoded = decode_resource_name(&bytes);
+    if decoded.is_empty() { None } else { Some(decoded) }
+}
+
+fn decode_display_text(bytes: &[u8]) -> String {
+    if let Ok(text) = std::str::from_utf8(bytes) {
+        return text.to_string();
+    }
+    if let Some(text) = encoding_rs::BIG5
+        .decode_without_bom_handling_and_without_replacement(bytes)
+    {
+        return text.into_owned();
+    }
+    if let Some(text) = encoding_rs::EUC_KR
+        .decode_without_bom_handling_and_without_replacement(bytes)
+    {
+        return text.into_owned();
+    }
+    String::from_utf8_lossy(bytes).into_owned()
+}
+
+fn decode_resource_name(bytes: &[u8]) -> String {
     if let Ok(text) = std::str::from_utf8(bytes) {
         return text.to_string();
     }
@@ -133,10 +153,10 @@ impl Table for ItemInfo {
             }
             for (item_id, item_table) in table.pairs::<u32, mlua::Table>().flatten() {
                 let info = ItemInfo {
-                    identified_name: ItemName::from_option(read_lua_string(&item_table, "identifiedDisplayName")),
-                    unidentified_name: ItemName::from_option(read_lua_string(&item_table, "unidentifiedDisplayName")),
-                    identified_resource: ItemResource::from_option(read_lua_string(&item_table, "identifiedResourceName")),
-                    unidentified_resource: ItemResource::from_option(read_lua_string(&item_table, "unidentifiedResourceName")),
+                    identified_name: ItemName::from_option(read_lua_display_string(&item_table, "identifiedDisplayName")),
+                    unidentified_name: ItemName::from_option(read_lua_display_string(&item_table, "unidentifiedDisplayName")),
+                    identified_resource: ItemResource::from_option(read_lua_resource_string(&item_table, "identifiedResourceName")),
+                    unidentified_resource: ItemResource::from_option(read_lua_resource_string(&item_table, "unidentifiedResourceName")),
                     identified_description: read_description_lines(&item_table, "identifiedDescriptionName"),
                     unidentified_description: read_description_lines(&item_table, "unidentifiedDescriptionName"),
                 };

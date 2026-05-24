@@ -743,7 +743,39 @@ where
     }
 
     pub fn send_chat_message(&mut self, player_name: &str, text: &str) -> Result<(), NotConnectedError> {
-        let message = format!("{} : {}", player_name, text);
+        if std::env::var("KORANGAR_DEBUG_TEXTURE_PATHS").is_ok() {
+            eprintln!(
+                "[CHAT_SEND] player_name={:?} player_name_bytes={:02x?} text={:?}",
+                player_name,
+                player_name.as_bytes(),
+                text,
+            );
+        }
+        // Pandas / rAthena compares the name portion byte-for-byte against
+        // `sd->status.name`. Build the payload manually so the player's name
+        // keeps its original byte representation:
+        //   * chars > 0xFF (real Unicode codepoints) → UTF-8 bytes
+        //   * chars <= 0xFF (Latin-cast bytes from a non-UTF-8 char-list
+        //     packet — the fallback path in `ByteReader::decode_string`) →
+        //     recovered as the single original byte.
+        // The chat message itself is always UTF-8.
+        let mut message: Vec<u8> = Vec::with_capacity(player_name.len() + 3 + text.len() + 1);
+        for ch in player_name.chars() {
+            let codepoint = ch as u32;
+            if codepoint <= 0xFF {
+                message.push(codepoint as u8);
+            } else {
+                let mut buffer = [0u8; 4];
+                message.extend_from_slice(ch.encode_utf8(&mut buffer).as_bytes());
+            }
+        }
+        message.extend_from_slice(b" : ");
+        message.extend_from_slice(text.as_bytes());
+        message.push(0);
+
+        if std::env::var("KORANGAR_DEBUG_TEXTURE_PATHS").is_ok() {
+            eprintln!("[CHAT_PAYLOAD] {:02x?}", message);
+        }
 
         match self.map_server_packet_version()? {
             SupportedPacketVersion::_20220406 => self.send_map_server_packet(GlobalMessagePacket::new(message)),
