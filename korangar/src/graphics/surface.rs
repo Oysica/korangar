@@ -154,8 +154,10 @@ impl Surface {
     }
 
     pub fn update_window_size(&mut self, window_size: ScreenSize) {
-        self.config.width = window_size.width as u32;
-        self.config.height = window_size.height as u32;
+        // Clamp to at least 1x1: wgpu's Surface::configure panics on zero
+        // dimensions, which a Windows minimize-to-taskbar can produce.
+        self.config.width = (window_size.width as u32).max(1);
+        self.config.height = (window_size.height as u32).max(1);
         self.invalidate();
     }
 

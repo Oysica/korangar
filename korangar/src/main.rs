@@ -1050,9 +1050,15 @@ impl Client {
                     self.networking_system.disconnect_from_character_server();
                     self.networking_system
                         .connect_to_map_server(self.saved_packet_version, saved_login_data, login_data);
-                    // Ask for the client tick right away, so that the player isn't de-synced when
-                    // they spawn on the map.
-                    let _ = self.networking_system.request_client_tick();
+                    // NOTE: Don't queue a tick-request packet right here.
+                    // PandasWS / rAthena verify the WantToConnection packet by
+                    // comparing RFIFOREST to packet_db[cmd].len, so any extra
+                    // bytes that pile up in the server's receive buffer before
+                    // 0x0888 is processed look like a malformed connect packet
+                    // ("unknown connect packet 0x0888(length:25)") and the
+                    // client gets disconnected. The ping interval inside
+                    // handle_server_connection will issue the first
+                    // RequestServerTick after the connect has settled.
 
                     let character_information = self
                         .client_state

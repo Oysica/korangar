@@ -296,13 +296,26 @@ where
         Callback: PacketCallback,
     {
         let mut stream = TcpStream::connect(address).await.map_err(|_| NetworkTaskError::FailedToConnect)?;
-        // `tokio::time::interval` fires the first tick immediately, which races
-        // with the initial connect packet in `select!` and can let a ping land
-        // in the same TCP segment as the connect packet. rAthena-derived
-        // servers (PandasWS) parse the WantToConnection packet by comparing
-        // RFIFOREST against packet_db[cmd].len, so any extra bytes cause an
-        // "unknown connect packet" rejection. Delay the first ping by a full
-        // interval so the connect packet always lands by itself.
+        // Disable Nagle so each `write_all` lands in its own TCP segment.
+        // rAthena-derived servers (PandasWS) verify the WantToConnection packet
+        // by comparing RFIFOREST against packet_db[cmd].len, so the connect
+        // packet MUST arrive alone — any ping bytes that get coalesced into
+        // the same segment trigger an "unknown connect packet" rejection.
+        let _ = stream.set_nodelay(true);
+
+        // Wait for the first outbound action (typically the connect packet)
+        // and write it before the ping interval starts ticking. Without this
+        // an immediately-ready interval tick can race the connect write and
+        // sneak a 0x0360 ping into the same segment.
+        if let Some(first_action) = action_receiver.recv().await {
+            stream
+                .write_all(&first_action)
+                .await
+                .map_err(|_| NetworkTaskError::ConnectionClosed)?;
+        } else {
+            return Ok(());
+        }
+
         let mut interval = tokio::time::interval_at(
             tokio::time::Instant::now() + ping_frequency,
             ping_frequency,
