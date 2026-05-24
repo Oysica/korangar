@@ -3847,11 +3847,20 @@ impl ApplicationHandler for Client {
                     self.input_system.update_keyboard(keycode, event.state);
                 }
 
-                if let Some(text) = event.text
-                    && event.state.is_pressed()
-                {
-                    for char in text.chars() {
-                        self.input_system.buffer_character(char);
+                if event.state.is_pressed() {
+                    if let Some(text) = event.text.as_ref() {
+                        for char in text.chars() {
+                            self.input_system.buffer_character(char);
+                        }
+                    } else if let winit::keyboard::Key::Character(text) = &event.logical_key {
+                        // IME can leave `event.text` empty even for plain ASCII
+                        // keys (digits / shifted symbols) while it sits in
+                        // an active state without an actual composition. Fall
+                        // back to the logical-key text so the field still
+                        // receives the keystroke.
+                        for char in text.chars() {
+                            self.input_system.buffer_character(char);
+                        }
                     }
                 }
             }

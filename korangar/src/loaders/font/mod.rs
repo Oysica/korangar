@@ -421,7 +421,12 @@ impl FontLoader {
                 &mut font_system,
                 ColorSpanIterator::new(text, default_color, highlight_color, attributes.clone()),
                 &attributes,
-                Shaping::Advanced,
+                // Use Basic shaping (direct cmap lookup) instead of Advanced so
+                // OpenType GSUB substitutions don't swap baseline glyphs for
+                // contextual alternates that were never baked into our MSDF
+                // atlas — e.g. proportional vs. tabular digits when mixed with
+                // letters in the same run.
+                Shaping::Basic,
                 None,
             );
 
