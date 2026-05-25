@@ -54,6 +54,13 @@ impl Inventory {
         self.other_items.clear();
         self.personal_items.clear();
         for item in &self.items {
+            // Hide items that are currently equipped — they live in the
+            // equipment window instead.
+            if let InventoryItemDetails::Equippable { equipped_position, .. } = &item.details
+                && !equipped_position.is_empty()
+            {
+                continue;
+            }
             match categorize(item.item_type) {
                 InventoryCategory::Consumable => self.consumable_items.push(item.clone()),
                 InventoryCategory::Equipment => self.equipment_items.push(item.clone()),

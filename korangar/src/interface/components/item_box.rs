@@ -82,6 +82,51 @@ where
     }
 }
 
+/// Double-click handler that toggles equip / unequip for an equippable item
+/// sitting in the inventory.
+struct ItemEquipToggleHandler<P> {
+    item_path: P,
+}
+
+impl<P> ItemEquipToggleHandler<P> {
+    fn new(item_path: P) -> Self {
+        Self { item_path }
+    }
+}
+
+impl<P> ClickHandler<ClientState> for ItemEquipToggleHandler<P>
+where
+    P: Path<ClientState, InventoryItem<ResourceMetadata>, false>,
+{
+    fn handle_click(&self, state: &State<ClientState>, queue: &mut EventQueue<ClientState>) {
+        let Some(item) = state.try_get(&self.item_path) else {
+            return;
+        };
+        let InventoryItemDetails::Equippable {
+            equip_position,
+            equipped_position,
+            ..
+        } = item.details
+        else {
+            return;
+        };
+
+        if equipped_position.is_empty() {
+            queue.queue(InputEvent::MoveItem {
+                source: ItemSource::Inventory,
+                destination: ItemSource::Equipment { position: equip_position },
+                item: item.clone(),
+            });
+        } else {
+            queue.queue(InputEvent::MoveItem {
+                source: ItemSource::Equipment { position: equipped_position },
+                destination: ItemSource::Inventory,
+                item: item.clone(),
+            });
+        }
+    }
+}
+
 impl<P> DropHandler<ClientState> for ItemBoxHandler<P>
 where
     P: Path<ClientState, InventoryItem<ResourceMetadata>, false>,
@@ -104,6 +149,7 @@ pub struct ItemBox<A> {
     item_path: A,
     handler: ItemBoxHandler<A>,
     info_handler: ItemInfoHandler<A>,
+    equip_toggle_handler: ItemEquipToggleHandler<A>,
     amount_display: AmountDisplay,
 }
 
@@ -119,6 +165,7 @@ where
             item_path,
             handler: ItemBoxHandler::new(item_path, source),
             info_handler: ItemInfoHandler::new(item_path),
+            equip_toggle_handler: ItemEquipToggleHandler::new(item_path),
             amount_display: AmountDisplay::default(),
         }
     }
@@ -204,6 +251,13 @@ where
             if is_hovered {
                 layout.register_click_handler(MouseButton::Left, &self.handler);
                 layout.register_click_handler(MouseButton::Right, &self.info_handler);
+
+                // Double-click an equippable item to equip / unequip it without
+                // dragging onto the paper-doll. Works from both inventory boxes
+                // (equip) and the equipment-window boxes (unequip).
+                if matches!(item.details, InventoryItemDetails::Equippable { .. }) {
+                    layout.register_click_handler(MouseButton::DoubleLeft, &self.equip_toggle_handler);
+                }
             }
 
             if matches!(item.details, InventoryItemDetails::Regular { .. }) {

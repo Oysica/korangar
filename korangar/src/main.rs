@@ -124,7 +124,7 @@ use crate::world::*;
 
 const CLIENT_NAME: &str = "Korangar";
 const ROLLING_CUTTER_ID: SkillId = SkillId(2036);
-const DEFAULT_MAP: &str = "geffen";
+const DEFAULT_MAP: &str = "prontera";
 const START_CAMERA_FOCUS_POINT: Point3<f32> = Point3::new(600.0, 0.0, 240.0);
 const DEFAULT_BACKGROUND_MUSIC: Option<&str> = Some("bgm\\01.mp3");
 const MAIN_MENU_CLICK_SOUND_EFFECT: &str = "버튼소리.wav";
@@ -1045,6 +1045,10 @@ impl Client {
                 }
                 NetworkEvent::CharacterSelected { login_data, .. } => {
                     self.audio_engine.play_sound_effect(self.main_menu_click_sound_effect);
+
+                    // Clear chat log on each map re-login so stale messages
+                    // from a previous session don't pile up.
+                    self.client_state.follow_mut(client_state().chat_messages()).clear();
 
                     let saved_login_data = self.saved_login_data.as_ref().unwrap();
                     self.networking_system.disconnect_from_character_server();
@@ -2020,7 +2024,35 @@ impl Client {
                     if self.client_state.try_follow(this_entity()).is_some() {
                         match self.interface.is_window_with_class_open(WindowClass::Stats) {
                             true => self.interface.close_window_with_class(WindowClass::Stats),
-                            false => self.interface.open_window(StatsWindow::new(this_player().manually_asserted())),
+                            false => {
+                                let titlebar = self
+                                    .texture_loader
+                                    .get_or_load("UI\\titlebar_fix.png", crate::loaders::ImageType::Color);
+                                let statwin = self
+                                    .texture_loader
+                                    .get_or_load("UI\\statwin_bg.png", crate::loaders::ImageType::Color);
+                                let close_off = self
+                                    .texture_loader
+                                    .get_or_load("UI\\sys_close_off.png", crate::loaders::ImageType::Color);
+                                let close_on = self
+                                    .texture_loader
+                                    .get_or_load("UI\\sys_close_on.png", crate::loaders::ImageType::Color);
+                                let add_icon = self
+                                    .texture_loader
+                                    .get_or_load("UI\\sys_add.png", crate::loaders::ImageType::Color);
+                                if let (Ok(titlebar), Ok(statwin), Ok(close_off), Ok(close_on), Ok(add_icon)) =
+                                    (titlebar, statwin, close_off, close_on, add_icon)
+                                {
+                                    self.interface.open_window(StatsWindow::new(
+                                        this_player().manually_asserted(),
+                                        titlebar,
+                                        statwin,
+                                        close_off,
+                                        close_on,
+                                        add_icon,
+                                    ));
+                                }
+                            }
                         }
                     }
                 }

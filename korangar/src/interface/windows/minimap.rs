@@ -65,15 +65,15 @@ where
         layout.add_rectangle(
             viewport,
             CornerDiameter::uniform(8.0),
-            Color::monochrome_u8(20),
-            Color::rgba_u8(0, 0, 0, 100),
+            Color::rgba_u8(20, 20, 20, 90),
+            Color::rgba_u8(0, 0, 0, 60),
             ShadowPadding::diagonal(2.0, 4.0),
         );
 
         let minimap = state.get(&self.minimap_path);
 
         if let Some(texture) = minimap.texture() {
-            layout.add_texture(viewport, texture.clone(), Color::WHITE, false);
+            layout.add_texture(viewport, texture.clone(), Color::rgba_u8(255, 255, 255, 170), false);
         }
 
         // Player marker: scale tile_position into the viewport. The minimap
