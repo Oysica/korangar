@@ -32,13 +32,13 @@ const TEXT_FONT_SIZE: f32 = 11.0;
 
 /// Pixel layout of the empty value boxes inside `statwin_bg.png`. These are
 /// estimates measured against the image — tune if values don't sit perfectly.
-const STAT_VALUE_LEFT: f32 = 32.0;
+const STAT_VALUE_LEFT: f32 = 34.0;
 const STAT_VALUE_WIDTH: f32 = 18.0;
 /// Bonus (`+N`) cell — sits flush to the right of the base value.
-const STAT_BONUS_TEXT_LEFT: f32 = 50.0;
+const STAT_BONUS_TEXT_LEFT: f32 = 52.0;
 const STAT_BONUS_TEXT_WIDTH: f32 = 22.0;
 /// Cost (icon + number) cell — further right with a clear gap from bonus.
-const STAT_BONUS_LEFT: f32 = 82.0;
+const STAT_BONUS_LEFT: f32 = 80.0;
 const STAT_BONUS_WIDTH: f32 = 28.0;
 const INFO1_VALUE_LEFT: f32 = 130.0;
 const INFO1_VALUE_WIDTH: f32 = 60.0;
@@ -167,19 +167,25 @@ where
         };
         layout.add_texture(titlebar_area, self.titlebar_texture.clone(), Color::WHITE, false);
 
-        // Render the title text ourselves over the texture so we control the
-        // font size / color. The window's own title-text rendering uses the
-        // theme size which may not have all glyphs cached for our font.
-        layout.add_text(
-            titlebar_area,
-            "人物能力屬性狀態",
-            FontSize(TEXT_FONT_SIZE),
-            Color::rgba_u8(0, 0, 0, 255),
-            Color::rgba_u8(0, 0, 0, 255),
-            HorizontalAlignment::Left { offset: 10.0, border: 0.0 },
-            VerticalAlignment::Center { offset: 0.0 },
-            OverflowBehavior::Shrink,
-        );
+        // Render the title text ourselves over the texture. Fake-bold via
+        // double-draw with a 1px x-offset to keep antialiased edges from
+        // looking grey.
+        let title_shifted = Area {
+            left: titlebar_area.left + 1.0,
+            ..titlebar_area
+        };
+        for area in [title_shifted, titlebar_area] {
+            layout.add_text(
+                area,
+                "人物能力屬性狀態",
+                FontSize(TEXT_FONT_SIZE),
+                Color::rgba_u8(0, 0, 0, 255),
+                Color::TRANSPARENT,
+                HorizontalAlignment::Left { offset: 10.0, border: 0.0 },
+                VerticalAlignment::Center { offset: 0.0 },
+                OverflowBehavior::Shrink,
+            );
+        }
 
         // Close button on the top-right of the titlebar. Swap textures while
         // the mouse is hovering and register a click that closes the window.
