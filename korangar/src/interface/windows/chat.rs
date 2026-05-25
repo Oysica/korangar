@@ -199,15 +199,14 @@ where
         };
 
         window! {
-            title: "",
+            title: "聊天",
             class: Self::window_class(),
             theme: InterfaceThemeType::InGame,
             background_color: client_theme().chat().window_color(),
             resizable: false,
+            closable: true,
             border: 3.0,
             gaps: 2.0,
-            title_height: 0.0,
-            title_gap: 0.0,
             minimum_height: 150.0,
             maximum_height: 800.0,
             elements: (

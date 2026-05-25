@@ -444,6 +444,30 @@ where
     }
 
     #[cfg_attr(feature = "debug", korangar_debug::profile)]
+    /// Replace the anchor of the open window with the given class. Useful
+    /// for windows that need to re-pin themselves based on state.
+    pub fn set_window_anchor(&mut self, window_class: App::WindowClass, anchor: Anchor<App>) {
+        if let Some(wrapper) = self
+            .windows
+            .iter_mut()
+            .find(|wrapper| wrapper.window.get_class().contains(&window_class))
+        {
+            wrapper.data.anchor = anchor;
+            self.window_cache.update_anchor(window_class, anchor);
+        }
+    }
+
+    /// Replace the cached size of the open window with the given class.
+    pub fn set_window_size(&mut self, window_class: App::WindowClass, size: App::Size) {
+        if let Some(wrapper) = self
+            .windows
+            .iter_mut()
+            .find(|wrapper| wrapper.window.get_class().contains(&window_class))
+        {
+            wrapper.data.size = size;
+        }
+    }
+
     pub fn close_window_with_class(&mut self, window_class: App::WindowClass) {
         if let Some(index_from_back) = self
             .windows

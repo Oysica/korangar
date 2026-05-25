@@ -2,11 +2,12 @@ mod audio_settings;
 mod buy;
 mod buy_cart;
 mod buy_or_sell;
-mod cache;
+pub mod cache;
 mod character_creation;
 mod character_overview;
 mod character_selection;
 mod chat;
+mod chat_toggle;
 #[cfg(feature = "debug")]
 mod commands;
 mod dialog;
@@ -55,6 +56,7 @@ pub use self::character_creation::CharacterCreationWindow;
 pub use self::character_overview::CharacterOverviewWindow;
 pub use self::character_selection::CharacterSelectionWindow;
 pub use self::chat::{ChatTextBox, ChatWindow, ChatWindowState};
+pub use self::chat_toggle::ChatToggleButton;
 #[cfg(feature = "debug")]
 pub use self::commands::CommandsWindow;
 pub use self::dialog::{DialogWindow, DialogWindowState};
@@ -99,6 +101,7 @@ pub enum WindowClass {
     BuyCart,
     BuyOrSell,
     Chat,
+    ChatToggle,
     CharacterCreation,
     CharacterOverview,
     CharacterSelection,

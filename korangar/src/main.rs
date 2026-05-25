@@ -1113,8 +1113,7 @@ impl Client {
                         // be open while the player is selected.
                         this_player().manually_asserted(),
                     ));
-                    self.interface
-                        .open_window(ChatWindow::new(client_state().chat_window(), client_state().chat_messages()));
+                    self.interface.open_window(ChatToggleButton);
                     self.interface.open_window(HotbarWindow::new(
                         client_state().hotbar().skills(),
                         client_state().skill_tree().skills(),
@@ -2224,6 +2223,12 @@ impl Client {
                 #[cfg(feature = "debug")]
                 InputEvent::WarpToMap { map_name, position } => {
                     let _ = self.networking_system.warp_to_map(map_name, position);
+                }
+                InputEvent::OpenChatWindow => {
+                    if !self.interface.is_window_with_class_open(WindowClass::Chat) {
+                        self.interface
+                            .open_window(ChatWindow::new(client_state().chat_window(), client_state().chat_messages()));
+                    }
                 }
                 InputEvent::SendMessage { text } => {
                     // Handle special client commands.
@@ -3792,6 +3797,15 @@ impl Client {
             let (width, height) = resolution.dimensions();
             let _ = window.request_inner_size(LogicalSize::new(width as f64, height as f64));
             self.active_interface_settings.resolution = resolution;
+        }
+
+        // Sync chat / chat-toggle button visibility: only one of them visible at a time.
+        let chat_open = self.interface.is_window_with_class_open(WindowClass::Chat);
+        let toggle_open = self.interface.is_window_with_class_open(WindowClass::ChatToggle);
+        if chat_open && toggle_open {
+            self.interface.close_window_with_class(WindowClass::ChatToggle);
+        } else if !chat_open && !toggle_open {
+            self.interface.open_window(ChatToggleButton);
         }
     }
 }

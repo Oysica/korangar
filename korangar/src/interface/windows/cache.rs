@@ -38,6 +38,10 @@ fn experience_bar_size() -> ScreenSize {
 const CHAT_WIDTH: f32 = 450.0;
 /// Height of the bottom-left chat window in pixels.
 const CHAT_HEIGHT: f32 = 220.0;
+/// Width of the chat toggle button.
+const CHAT_TOGGLE_WIDTH: f32 = 60.0;
+/// Height of the chat toggle button.
+const CHAT_TOGGLE_HEIGHT: f32 = 22.0;
 /// Margin between the chat window and the screen left edge.
 const CHAT_EDGE_MARGIN: f32 = 8.0;
 /// Bottom margin = leave room for the experience bar + a small gap.
@@ -49,7 +53,7 @@ fn chat_anchor() -> Anchor<ClientState> {
         AnchorPoint::BottomLeft,
         ScreenPosition {
             left: CHAT_EDGE_MARGIN,
-            top: -(CHAT_HEIGHT + CHAT_BOTTOM_MARGIN),
+            top: -(CHAT_HEIGHT + CHAT_BOTTOM_MARGIN + CHAT_TOGGLE_HEIGHT + 4.0),
         },
     )
 }
@@ -58,6 +62,23 @@ fn chat_size() -> ScreenSize {
     ScreenSize {
         width: CHAT_WIDTH,
         height: CHAT_HEIGHT,
+    }
+}
+
+fn chat_toggle_anchor() -> Anchor<ClientState> {
+    Anchor::pinned(
+        AnchorPoint::BottomLeft,
+        ScreenPosition {
+            left: CHAT_EDGE_MARGIN,
+            top: -(CHAT_TOGGLE_HEIGHT + CHAT_BOTTOM_MARGIN),
+        },
+    )
+}
+
+fn chat_toggle_size() -> ScreenSize {
+    ScreenSize {
+        width: CHAT_TOGGLE_WIDTH,
+        height: CHAT_TOGGLE_HEIGHT,
     }
 }
 
@@ -174,6 +195,9 @@ impl korangar_interface::application::WindowCache<ClientState> for WindowCache {
         if matches!(class, WindowClass::Chat) {
             return Some((chat_anchor(), chat_size()));
         }
+        if matches!(class, WindowClass::ChatToggle) {
+            return Some((chat_toggle_anchor(), chat_toggle_size()));
+        }
         if matches!(class, WindowClass::CharacterOverview) {
             return Some((character_overview_anchor(), character_overview_size()));
         }
@@ -186,7 +210,11 @@ impl korangar_interface::application::WindowCache<ClientState> for WindowCache {
     fn register_window(&mut self, class: WindowClass, anchor: Anchor<ClientState>, size: ScreenSize) {
         if matches!(
             class,
-            WindowClass::ExperienceBar | WindowClass::Chat | WindowClass::CharacterOverview | WindowClass::Minimap
+            WindowClass::ExperienceBar
+                | WindowClass::Chat
+                | WindowClass::ChatToggle
+                | WindowClass::CharacterOverview
+                | WindowClass::Minimap
         ) {
             return;
         }
@@ -202,7 +230,11 @@ impl korangar_interface::application::WindowCache<ClientState> for WindowCache {
     fn update_anchor(&mut self, class: WindowClass, anchor: Anchor<ClientState>) {
         if matches!(
             class,
-            WindowClass::ExperienceBar | WindowClass::Chat | WindowClass::CharacterOverview | WindowClass::Minimap
+            WindowClass::ExperienceBar
+                | WindowClass::Chat
+                | WindowClass::ChatToggle
+                | WindowClass::CharacterOverview
+                | WindowClass::Minimap
         ) {
             return;
         }
@@ -214,7 +246,11 @@ impl korangar_interface::application::WindowCache<ClientState> for WindowCache {
     fn update_size(&mut self, class: WindowClass, size: ScreenSize) {
         if matches!(
             class,
-            WindowClass::ExperienceBar | WindowClass::Chat | WindowClass::CharacterOverview | WindowClass::Minimap
+            WindowClass::ExperienceBar
+                | WindowClass::Chat
+                | WindowClass::ChatToggle
+                | WindowClass::CharacterOverview
+                | WindowClass::Minimap
         ) {
             return;
         }

@@ -125,6 +125,8 @@ pub enum InputEvent {
         entity_id: EntityId,
     },
     /// Send a chat message.
+    /// Open the chat window (fired by the bottom-left chat toggle button).
+    OpenChatWindow,
     SendMessage {
         /// Text of the message.
         text: String,
