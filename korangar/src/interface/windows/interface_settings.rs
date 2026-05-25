@@ -95,6 +95,18 @@ where
                     }
                 )
             },
+            split! {
+                children: (
+                    text! {
+                        text: "解析度",
+                        overflow_behavior: OverflowBehavior::Shrink,
+                    },
+                    drop_down! {
+                        selected: self.settings_path.resolution(),
+                        options: self.capabilities_path.resolutions(),
+                    }
+                )
+            },
         );
 
         window! {

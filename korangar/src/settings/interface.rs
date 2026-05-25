@@ -1,5 +1,6 @@
 #[cfg(feature = "debug")]
 use korangar_debug::logging::{Colorize, print_debug};
+use korangar_interface::components::drop_down::DropDownItem;
 use korangar_interface::element::StateElement;
 use ron::ser::PrettyConfig;
 use rust_state::RustState;
@@ -7,6 +8,49 @@ use serde::{Deserialize, Serialize};
 
 use crate::loaders::Scaling;
 use crate::state::localization::Language;
+
+#[derive(Copy, Clone, PartialEq, Eq, Serialize, Deserialize, StateElement)]
+pub enum Resolution {
+    R1280x720,
+    R1366x768,
+    R1600x900,
+    R1920x1080,
+    R2560x1440,
+}
+
+impl Default for Resolution {
+    fn default() -> Self {
+        Self::R1280x720
+    }
+}
+
+impl Resolution {
+    pub fn dimensions(self) -> (u32, u32) {
+        match self {
+            Self::R1280x720 => (1280, 720),
+            Self::R1366x768 => (1366, 768),
+            Self::R1600x900 => (1600, 900),
+            Self::R1920x1080 => (1920, 1080),
+            Self::R2560x1440 => (2560, 1440),
+        }
+    }
+}
+
+impl DropDownItem<Resolution> for Resolution {
+    fn text(&self) -> &str {
+        match self {
+            Resolution::R1280x720 => "1280 x 720",
+            Resolution::R1366x768 => "1366 x 768",
+            Resolution::R1600x900 => "1600 x 900",
+            Resolution::R1920x1080 => "1920 x 1080",
+            Resolution::R2560x1440 => "2560 x 1440",
+        }
+    }
+
+    fn value(&self) -> Resolution {
+        *self
+    }
+}
 
 /// This theme name includes a zero byte so that it can not point to an actual
 /// file. This is guaranteed to fail to load which will automatically fall back
@@ -24,6 +68,8 @@ pub struct InterfaceSettings {
     pub menu_theme: String,
     pub in_game_theme: String,
     pub world_theme: String,
+    #[serde(skip, default)]
+    pub resolution: Resolution,
 }
 
 impl Default for InterfaceSettings {
@@ -34,6 +80,7 @@ impl Default for InterfaceSettings {
             menu_theme: DEFAULT_THEME_NAME.to_string(),
             in_game_theme: DEFAULT_THEME_NAME.to_string(),
             world_theme: DEFAULT_THEME_NAME.to_string(),
+            resolution: Resolution::default(),
         }
     }
 }
@@ -89,6 +136,7 @@ pub struct InterfaceSettingsCapabilities {
     menu_themes: Vec<String>,
     in_game_themes: Vec<String>,
     world_themes: Vec<String>,
+    resolutions: Vec<Resolution>,
 }
 
 impl InterfaceSettingsCapabilities {
@@ -136,6 +184,13 @@ impl Default for InterfaceSettingsCapabilities {
             menu_themes: Self::load_themes(MENU_THEMES_PATH),
             in_game_themes: Self::load_themes(IN_GAME_THEMES_PATH),
             world_themes: Self::load_themes(WORLD_THEMES_PATH),
+            resolutions: vec![
+                Resolution::R1280x720,
+                Resolution::R1366x768,
+                Resolution::R1600x900,
+                Resolution::R1920x1080,
+                Resolution::R2560x1440,
+            ],
         }
     }
 }

@@ -333,6 +333,9 @@ struct Client {
 
     map: Option<Arc<Map>>,
     client_state: State<ClientState>,
+
+    last_move_destination: Option<TilePosition>,
+    last_move_send_at: Option<std::time::Instant>,
 }
 
 impl Client {
@@ -742,6 +745,9 @@ impl Client {
 
             map: Some(map),
             client_state,
+
+            last_move_destination: None,
+            last_move_send_at: None,
         })
     }
 
@@ -2121,11 +2127,22 @@ impl Client {
                 }
                 InputEvent::PlayerMove { destination } => {
                     if self.client_state.try_follow(this_entity()).is_some() {
-                        let _ = self.networking_system.player_move(WorldPosition {
-                            x: destination.x,
-                            y: destination.y,
-                            direction: Direction::North,
-                        });
+                        let now = std::time::Instant::now();
+                        let same_destination = self.last_move_destination == Some(destination);
+                        let too_soon = self
+                            .last_move_send_at
+                            .map(|t| now.duration_since(t) < std::time::Duration::from_millis(150))
+                            .unwrap_or(false);
+
+                        if !(same_destination && too_soon) {
+                            let _ = self.networking_system.player_move(WorldPosition {
+                                x: destination.x,
+                                y: destination.y,
+                                direction: Direction::North,
+                            });
+                            self.last_move_destination = Some(destination);
+                            self.last_move_send_at = Some(now);
+                        }
                     }
 
                     // Unbuffer any buffered action.
@@ -3767,6 +3784,15 @@ impl Client {
             *self.client_state.follow_mut(client_state().world_theme()) = theme;
             self.active_interface_settings.world_theme = world_theme;
         }
+
+        let resolution = *self.client_state.follow(client_state().interface_settings().resolution());
+        if self.active_interface_settings.resolution != resolution
+            && let Some(window) = self.window.as_ref()
+        {
+            let (width, height) = resolution.dimensions();
+            let _ = window.request_inner_size(LogicalSize::new(width as f64, height as f64));
+            self.active_interface_settings.resolution = resolution;
+        }
     }
 }
 
@@ -3788,6 +3814,7 @@ impl ApplicationHandler for Client {
                         width: INITIAL_SCREEN_SIZE.width,
                         height: INITIAL_SCREEN_SIZE.height,
                     })
+                    .with_resizable(false)
                     .with_title(CLIENT_NAME)
                     .with_window_icon(Some(icon))
                     .with_visible(false);
