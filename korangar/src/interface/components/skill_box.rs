@@ -230,9 +230,26 @@ where
                 // TODO: Put this in the theme
                 HorizontalAlignment::Right { offset: 3.0, border: 3.0 },
                 // TODO: Put this in the theme
-                VerticalAlignment::Bottom { offset: 3.0 },
+                VerticalAlignment::Top { offset: 3.0 },
                 OverflowBehavior::Shrink,
             );
+        }
+
+        // Show Q/W/E/R/D/F label at bottom-right for hotbar slots 0..6.
+        if let SkillSource::Hotbar { slot } = self.source {
+            const HOTKEY_LABELS: [&str; 6] = ["Q", "W", "E", "R", "D", "F"];
+            if let Some(label) = HOTKEY_LABELS.get(slot.0 as usize) {
+                layout.add_text(
+                    layout_info.area,
+                    label,
+                    FontSize(11.0),
+                    Color::WHITE,
+                    Color::rgba_u8(0, 0, 0, 200),
+                    HorizontalAlignment::Right { offset: 3.0, border: 3.0 },
+                    VerticalAlignment::Bottom { offset: 3.0 },
+                    OverflowBehavior::Shrink,
+                );
+            }
         }
     }
 }

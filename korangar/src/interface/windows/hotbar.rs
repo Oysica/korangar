@@ -5,10 +5,9 @@ use rust_state::{ArrayLookupExt, OptionExt, Path};
 
 use crate::interface::resource::SkillSource;
 use crate::interface::windows::WindowClass;
-use crate::state::localization::LocalizationPathExt;
 use crate::state::skills::{LearnableSkill, LearnedSkill, LearnedSkillPath};
 use crate::state::theme::InterfaceThemeType;
-use crate::state::{ClientState, ClientStatePathExt, client_state};
+use crate::state::ClientState;
 
 pub struct HotbarWindow<A, B, const N: usize> {
     hotbar_path: A,
@@ -34,13 +33,16 @@ where
         use korangar_interface::prelude::*;
 
         window! {
-            title: client_state().localization().hotbar_window_title(),
+            title: "",
             class: Self::window_class(),
             theme: InterfaceThemeType::InGame,
+            resizable: false,
+            title_height: 0.0,
+            title_gap: 0.0,
             elements: (
                 split! {
                     gaps: theme().window().gaps(),
-                    children: std::array::from_fn::<_, N, _>(|slot| {
+                    children: std::array::from_fn::<_, 6, _>(|slot| {
                         let learnable_skill_path = self.hotbar_path.array_index(slot).unwrapped();
                         let learned_skill_path = LearnedSkillPath::new(learnable_skill_path, self.skills_path);
 

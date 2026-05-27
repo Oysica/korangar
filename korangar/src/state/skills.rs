@@ -159,27 +159,6 @@ pub struct SkillTree {
     skills: Vec<LearnedSkill>,
 }
 
-impl SkillTree {
-    pub fn update_skill(
-        &mut self,
-        skill_id: SkillId,
-        skill_level: SkillLevel,
-        spell_point_cost: u16,
-        attack_range: AttackRange,
-        upgradable: bool,
-    ) {
-        if let Some(skill) = self.skills.iter_mut().find(|skill| skill.skill_id == skill_id) {
-            skill.skill_level = skill_level;
-            skill.spell_point_cost = spell_point_cost;
-            skill.attack_range = attack_range;
-            skill.upgradable = upgradable;
-        }
-    }
-
-    pub fn remove_skill(&mut self, skill_id: SkillId) {
-        self.skills.retain(|skill| skill.skill_id != skill_id);
-    }
-}
 
 pub fn bring_skill_to_level(
     collected_skill_points: &mut Vec<SkillId>,

@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use korangar_interface::MouseMode;
 use korangar_networking::InventoryItem;
-use ragnarok_packets::TilePosition;
+use ragnarok_packets::{SkillId, SkillLevel, TilePosition};
 
 use crate::graphics::Texture;
 use crate::interface::resource::{ItemSource, SkillSource};
@@ -24,6 +24,13 @@ pub enum MouseInputMode {
     MoveSkill {
         source: SkillSource,
         skill: LearnableSkill,
+    },
+    /// The user pressed a hotbar key for a ground-targeted skill and is now
+    /// aiming. Left-click confirms the cast at the picked tile, right-click
+    /// or escape cancels.
+    AimingGroundSkill {
+        skill_id: SkillId,
+        skill_level: SkillLevel,
     },
 }
 

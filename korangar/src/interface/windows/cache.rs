@@ -82,6 +82,30 @@ fn chat_toggle_size() -> ScreenSize {
     }
 }
 
+/// Width of the bottom-center hotbar (6 slots).
+const HOTBAR_WIDTH: f32 = 270.0;
+/// Height of the hotbar window.
+const HOTBAR_HEIGHT: f32 = 60.0;
+/// Gap between the hotbar and the experience bar.
+const HOTBAR_BOTTOM_GAP: f32 = 28.0;
+
+fn hotbar_anchor() -> Anchor<ClientState> {
+    Anchor::pinned(
+        AnchorPoint::BottomCenter,
+        ScreenPosition {
+            left: -HOTBAR_WIDTH / 2.0,
+            top: -(HOTBAR_HEIGHT + EXPERIENCE_BAR_HEIGHT + EXPERIENCE_BAR_BOTTOM_MARGIN + HOTBAR_BOTTOM_GAP),
+        },
+    )
+}
+
+fn hotbar_size() -> ScreenSize {
+    ScreenSize {
+        width: HOTBAR_WIDTH,
+        height: HOTBAR_HEIGHT,
+    }
+}
+
 /// Width of the top-left character overview window in pixels.
 const CHARACTER_OVERVIEW_WIDTH: f32 = 320.0;
 /// Height of the top-left character overview window in pixels.
@@ -198,6 +222,9 @@ impl korangar_interface::application::WindowCache<ClientState> for WindowCache {
         if matches!(class, WindowClass::ChatToggle) {
             return Some((chat_toggle_anchor(), chat_toggle_size()));
         }
+        if matches!(class, WindowClass::Hotbar) {
+            return Some((hotbar_anchor(), hotbar_size()));
+        }
         if matches!(class, WindowClass::CharacterOverview) {
             return Some((character_overview_anchor(), character_overview_size()));
         }
@@ -215,6 +242,7 @@ impl korangar_interface::application::WindowCache<ClientState> for WindowCache {
                 | WindowClass::ChatToggle
                 | WindowClass::CharacterOverview
                 | WindowClass::Minimap
+                | WindowClass::Hotbar
         ) {
             return;
         }
@@ -235,6 +263,7 @@ impl korangar_interface::application::WindowCache<ClientState> for WindowCache {
                 | WindowClass::ChatToggle
                 | WindowClass::CharacterOverview
                 | WindowClass::Minimap
+                | WindowClass::Hotbar
         ) {
             return;
         }
@@ -251,6 +280,7 @@ impl korangar_interface::application::WindowCache<ClientState> for WindowCache {
                 | WindowClass::ChatToggle
                 | WindowClass::CharacterOverview
                 | WindowClass::Minimap
+                | WindowClass::Hotbar
         ) {
             return;
         }

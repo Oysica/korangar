@@ -124,6 +124,24 @@ use crate::world::*;
 
 const CLIENT_NAME: &str = "Korangar";
 const ROLLING_CUTTER_ID: SkillId = SkillId(2036);
+
+/// Map a skill id to its visual AoE radius in tiles for the aiming telegraph.
+/// The center tile plus radius tiles in each direction = (2 * radius + 1) wide.
+/// Falls back to 1 for unknown ground skills.
+fn ground_skill_aoe_radius(skill_id: SkillId) -> u32 {
+    match skill_id.0 {
+        83 => 2,   // WZ_METEOR (5x5 per meteor cluster, approximation)
+        89 => 5,   // WZ_STORMGUST (11x11)
+        88 => 2,   // WZ_HEAVENDRIVE (5x5)
+        85 => 4,   // WZ_VERMILION (9x9, lightning rain)
+        81 => 2,   // PR_SANCTUARY (5x5)
+        70 => 2,   // PR_MAGNUS (5x5)
+        17 => 2,   // MG_THUNDERSTORM (5x5)
+        21 => 2,   // MG_FIREWALL (small line, approx 5)
+        80 => 4,   // WZ_FIREPILLAR (9x9, treat as area)
+        _ => 1,    // Default 3x3 for unknown ground skills (incl. traps).
+    }
+}
 const DEFAULT_MAP: &str = "prontera";
 const START_CAMERA_FOCUS_POINT: Point3<f32> = Point3::new(600.0, 0.0, 240.0);
 const DEFAULT_BACKGROUND_MUSIC: Option<&str> = Some("bgm\\01.mp3");
@@ -336,6 +354,10 @@ struct Client {
 
     last_move_destination: Option<TilePosition>,
     last_move_send_at: Option<std::time::Instant>,
+
+    /// Set by InputEvent handlers when they want the next frame to switch
+    /// to a new mouse mode (e.g. entering ground-skill aiming).
+    pending_mouse_mode: Option<MouseInputMode>,
 }
 
 impl Client {
@@ -748,6 +770,7 @@ impl Client {
 
             last_move_destination: None,
             last_move_send_at: None,
+            pending_mouse_mode: None,
         })
     }
 
@@ -1098,8 +1121,12 @@ impl Client {
                     }
 
                     let layout = self.async_loader.request_skill_tree_layout_load(player.get_job_id(), client_tick);
-                    *self.client_state.follow_mut(client_state().skill_tree_window().selected_tab()) = layout.tabs.len().saturating_sub(1);
-                    *self.client_state.follow_mut(client_state().skill_tree().layout()) = layout;
+                    self.client_state.update_value(
+                        client_state().skill_tree_window().selected_tab(),
+                        layout.tabs.len().saturating_sub(1),
+                    );
+                    self.client_state
+                        .update_value(client_state().skill_tree().layout(), layout);
                     self.client_state
                         .follow_mut(client_state().skill_tree_window().chosen_skill_level())
                         .clear();
@@ -1482,9 +1509,14 @@ impl Client {
                     }
                 }
                 NetworkEvent::UpdateStat { stat_type } => {
-                    if let Some(player) = self.client_state.try_follow_mut(this_player()) {
-                        player.update_stat(stat_type);
-                    }
+                    self.client_state
+                        .update_value_with(client_state().entities(), move |entities| {
+                            if let Some(entity) = entities.first_mut()
+                                && let Entity::Player(player) = entity
+                            {
+                                player.update_stat(stat_type.clone());
+                            }
+                        });
                 }
                 NetworkEvent::OpenDialog { text, npc_id } => {
                     self.client_state
@@ -1561,8 +1593,11 @@ impl Client {
                     self.client_state.follow_mut(client_state().inventory()).remove_item(index, amount);
                 }
                 NetworkEvent::SkillTree { skill_information } => {
-                    *self.client_state.follow_mut(client_state().skill_tree().skills()) =
-                        skill_information.into_iter().map(LearnedSkill::new).collect();
+                    self.client_state
+                        .update_value_with(client_state().skill_tree().skills(), move |skills| {
+                            skills.clear();
+                            skills.extend(skill_information.iter().cloned().map(LearnedSkill::new));
+                        });
                 }
                 NetworkEvent::UpdateEquippedPosition { index, equipped_position } => {
                     self.client_state
@@ -1571,8 +1606,12 @@ impl Client {
                 }
                 NetworkEvent::ChangeJob { account_id, job_id } => {
                     let layout = self.async_loader.request_skill_tree_layout_load(job_id, client_tick);
-                    *self.client_state.follow_mut(client_state().skill_tree_window().selected_tab()) = layout.tabs.len().saturating_sub(1);
-                    *self.client_state.follow_mut(client_state().skill_tree().layout()) = layout;
+                    self.client_state.update_value(
+                        client_state().skill_tree_window().selected_tab(),
+                        layout.tabs.len().saturating_sub(1),
+                    );
+                    self.client_state
+                        .update_value(client_state().skill_tree().layout(), layout);
                     self.client_state
                         .follow_mut(client_state().skill_tree_window().chosen_skill_level())
                         .clear();
@@ -1874,19 +1913,23 @@ impl Client {
                     attack_range,
                     upgradable,
                 } => {
-                    self.client_state.follow_mut(client_state().skill_tree()).update_skill(
-                        skill_id,
-                        skill_level,
-                        spell_point_cost,
-                        attack_range,
-                        upgradable,
-                    );
-                }
-                NetworkEvent::RemoveSkill { skill_id } => {
-                    self.client_state.follow_mut(client_state().skill_tree()).remove_skill(skill_id);
                     self.client_state
-                        .follow_mut(client_state().skill_tree_window().chosen_skill_level())
-                        .remove(&skill_id);
+                        .update_value_with(client_state().skill_tree().skills(), move |skills| {
+                            if let Some(skill) = skills.iter_mut().find(|s| s.skill_id == skill_id) {
+                                skill.skill_level = skill_level;
+                                skill.spell_point_cost = spell_point_cost;
+                                skill.attack_range = attack_range;
+                                skill.upgradable = upgradable;
+                            }
+                        });
+                }
+                NetworkEvent::RemoveSkill { skill_id: _ } => {
+                    // WORKAROUND: PandasWS / rAthena sends ZC_SKILLINFO_DELETE (0x0441)
+                    // for every skill after stat-up changes without re-sending the
+                    // updated skill list afterwards, which would wipe the client-side
+                    // skill tree entirely. Treat RemoveSkill as a no-op; legitimate
+                    // skill removals (job change, skill reset) are followed by a
+                    // SkillTree packet that fully replaces the list anyway.
                 }
             }
         }
@@ -2345,13 +2388,11 @@ impl Client {
                                 }
                             }
                             SkillType::Ground | SkillType::Trap => {
-                                if let PickerTarget::Tile { x, y } = input_report.mouse_target {
-                                    let _ = self.networking_system.cast_ground_skill(
-                                        learnable_skill.skill_id,
-                                        learnable_skill.maximum_level,
-                                        TilePosition { x, y },
-                                    );
-                                }
+                                // Enter aiming mode: red marker follows cursor until left-click confirms.
+                                self.pending_mouse_mode = Some(MouseInputMode::AimingGroundSkill {
+                                    skill_id: learnable_skill.skill_id,
+                                    skill_level: learnable_skill.maximum_level,
+                                });
                             }
                             SkillType::SelfCast => match learnable_skill.skill_id == ROLLING_CUTTER_ID {
                                 true => {
@@ -3330,6 +3371,12 @@ impl Client {
                 // Capture the currently held inventory item (if any) so the drag-out drop
                 // detection can fire without holding a borrow on `self.interface` while
                 // the interface frame is still alive.
+                let aiming_ground_skill: Option<(SkillId, SkillLevel)> = match mouse_mode {
+                    MouseMode::Custom {
+                        mode: MouseInputMode::AimingGroundSkill { skill_id, skill_level },
+                    } => Some((*skill_id, *skill_level)),
+                    _ => None,
+                };
                 let held_inventory_item = match mouse_mode {
                     MouseMode::Custom {
                         mode: MouseInputMode::MoveItem {
@@ -3351,6 +3398,11 @@ impl Client {
                     let mut interface_frame =
                         self.interface
                             .lay_out_windows(&self.client_state, scaling.get_factor(), input_report.mouse_position);
+
+                    // Apply any mouse mode queued by an InputEvent handler this frame.
+                    if let Some(pending) = self.pending_mouse_mode.take() {
+                        interface_frame.set_mouse_mode(pending);
+                    }
 
                     // We can only decide what to do with the user input once we know if the mouse
                     // is hovering a window, so we buffer any actions for the next frame.
@@ -3389,6 +3441,24 @@ impl Client {
                     if let Some(mouse_button) = input_report.mouse_click {
                         if is_interface_hovered {
                             interface_frame.click(&self.client_state, mouse_button);
+                        } else if let Some((skill_id, skill_level)) = aiming_ground_skill {
+                            interface_frame.unfocus();
+
+                            match mouse_button {
+                                MouseButton::Left => {
+                                    if let PickerTarget::Tile { x, y } = input_report.mouse_target {
+                                        let _ = self
+                                            .networking_system
+                                            .cast_ground_skill(skill_id, skill_level, TilePosition { x, y });
+                                    }
+                                    interface_frame.set_mouse_mode(MouseMode::<ClientState>::Default);
+                                }
+                                MouseButton::Right => {
+                                    // Cancel aiming.
+                                    interface_frame.set_mouse_mode(MouseMode::<ClientState>::Default);
+                                }
+                                _ => {}
+                            }
                         } else {
                             interface_frame.unfocus();
 
@@ -3505,6 +3575,8 @@ impl Client {
                     );
                 }
 
+                let _is_aiming_ground_skill = aiming_ground_skill.is_some();
+
                 match input_report.mouse_target {
                     PickerTarget::Tile { x, y } => {
                         // Only show if the mouse mode is default or walking.
@@ -3514,6 +3586,17 @@ impl Client {
                         {
                             #[cfg_attr(feature = "debug", korangar_debug::debug_condition(render_options.show_indicators))]
                             map.render_walk_indicator(&mut indicator_instruction, walk_indicator_color, TilePosition { x, y });
+                        }
+                        if currently_playing && !interface_frame.is_interface_hovered() {
+                            if let Some((skill_id, _)) = aiming_ground_skill {
+                                let radius = ground_skill_aoe_radius(skill_id);
+                                map.render_aoe_indicator(
+                                    &mut indicator_instruction,
+                                    Color::rgba_u8(220, 40, 40, 180),
+                                    TilePosition { x, y },
+                                    radius,
+                                );
+                            }
                         }
                     }
                     PickerTarget::Entity(entity_id) => {

@@ -254,28 +254,24 @@ impl InputSystem {
             events.push(InputEvent::CloseTopWindow);
         }
 
-        if self.get_key(KeyCode::KeyJ).pressed() {
-            events.push(InputEvent::CastSkill { slot: HotbarSlot(0) });
-        }
-
-        if self.get_key(KeyCode::KeyJ).released() {
-            events.push(InputEvent::StopSkill { slot: HotbarSlot(0) });
-        }
-
-        if self.get_key(KeyCode::KeyL).pressed() {
-            events.push(InputEvent::CastSkill { slot: HotbarSlot(1) });
-        }
-
-        if self.get_key(KeyCode::KeyL).released() {
-            events.push(InputEvent::StopSkill { slot: HotbarSlot(1) });
-        }
-
-        if self.get_key(KeyCode::KeyU).pressed() {
-            events.push(InputEvent::CastSkill { slot: HotbarSlot(2) });
-        }
-
-        if self.get_key(KeyCode::KeyU).released() {
-            events.push(InputEvent::StopSkill { slot: HotbarSlot(2) });
+        // Hotbar slots 0..5 -> Q W E R D F (no Alt/Ctrl modifier required).
+        if !alt_down && !control_down {
+            const HOTBAR_KEYS: [(KeyCode, u16); 6] = [
+                (KeyCode::KeyQ, 0),
+                (KeyCode::KeyW, 1),
+                (KeyCode::KeyE, 2),
+                (KeyCode::KeyR, 3),
+                (KeyCode::KeyD, 4),
+                (KeyCode::KeyF, 5),
+            ];
+            for (key, slot) in HOTBAR_KEYS {
+                if self.get_key(key).pressed() {
+                    events.push(InputEvent::CastSkill { slot: HotbarSlot(slot) });
+                }
+                if self.get_key(key).released() {
+                    events.push(InputEvent::StopSkill { slot: HotbarSlot(slot) });
+                }
+            }
         }
 
         #[cfg(feature = "debug")]

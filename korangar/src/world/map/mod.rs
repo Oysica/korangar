@@ -568,6 +568,66 @@ impl Map {
         }
     }
 
+    /// Render an AoE indicator covering a square of (2 * radius_tiles + 1) tiles
+    /// centered on `position`. Sample the heights from the four corner tiles of
+    /// the area; for very uneven terrain this is approximate but good enough
+    /// as a telegraph overlay.
+    #[cfg_attr(feature = "debug", korangar_debug::profile)]
+    pub fn render_aoe_indicator(
+        &self,
+        instruction: &mut Option<IndicatorInstruction>,
+        color: Color,
+        position: TilePosition,
+        radius_tiles: u32,
+    ) {
+        const OFFSET: f32 = 1.0;
+
+        if position.x >= self.width || position.y >= self.height {
+            return;
+        }
+
+        let r = radius_tiles as i32;
+        let min_x = (position.x as i32 - r).max(0) as u16;
+        let min_y = (position.y as i32 - r).max(0) as u16;
+        let max_x = (position.x as i32 + r).min(self.width as i32 - 1) as u16;
+        let max_y = (position.y as i32 + r).min(self.height as i32 - 1) as u16;
+
+        let Some(sw_tile) = self.get_tile(TilePosition { x: min_x, y: min_y }) else {
+            return;
+        };
+        let Some(se_tile) = self.get_tile(TilePosition { x: max_x, y: min_y }) else {
+            return;
+        };
+        let Some(nw_tile) = self.get_tile(TilePosition { x: min_x, y: max_y }) else {
+            return;
+        };
+        let Some(ne_tile) = self.get_tile(TilePosition { x: max_x, y: max_y }) else {
+            return;
+        };
+
+        let base_left = min_x as f32 * GAT_TILE_SIZE;
+        let base_top = min_y as f32 * GAT_TILE_SIZE;
+        let base_right = (max_x + 1) as f32 * GAT_TILE_SIZE;
+        let base_bottom = (max_y + 1) as f32 * GAT_TILE_SIZE;
+
+        let upper_left = Point3::new(base_left, sw_tile.southwest_corner_height + OFFSET, base_top);
+        let upper_right = Point3::new(base_right, se_tile.southeast_corner_height + OFFSET, base_top);
+        let lower_left = Point3::new(base_left, nw_tile.northwest_corner_height + OFFSET, base_bottom);
+        let lower_right = Point3::new(
+            base_right,
+            ne_tile.northeast_corner_height + OFFSET,
+            base_bottom,
+        );
+
+        *instruction = Some(IndicatorInstruction {
+            upper_left,
+            upper_right,
+            lower_left,
+            lower_right,
+            color,
+        });
+    }
+
     #[cfg_attr(feature = "debug", korangar_debug::profile)]
     pub fn ambient_light_color(&self) -> Color {
         self.lighting.ambient_light_color()
