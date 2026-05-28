@@ -100,6 +100,7 @@ struct EngineContext {
     light_culling_dispatcher: LightCullingDispatcher,
     forward_entity_drawer: ForwardEntityDrawer,
     forward_indicator_drawer: ForwardIndicatorDrawer,
+    forward_danger_indicator_drawer: ForwardDangerIndicatorDrawer,
     forward_model_drawer: ForwardModelDrawer,
     water_wave_drawer: WaterWaveDrawer,
     clear_partitions_dispatcher: ClearPartitionsDispatcher,
@@ -328,6 +329,7 @@ impl GraphicsEngine {
                         let ForwardResources {
                             forward_entity_drawer,
                             forward_indicator_drawer,
+                            forward_danger_indicator_drawer,
                             forward_model_drawer,
                         } = ForwardResources::create(
                             &self.capabilities,
@@ -457,6 +459,7 @@ impl GraphicsEngine {
                         light_culling_dispatcher,
                         forward_entity_drawer,
                         forward_indicator_drawer,
+                        forward_danger_indicator_drawer,
                         forward_model_drawer,
                         water_wave_drawer,
                         clear_partitions_dispatcher,
@@ -597,6 +600,7 @@ impl GraphicsEngine {
             let ForwardResources {
                 forward_entity_drawer,
                 forward_indicator_drawer,
+                forward_danger_indicator_drawer,
                 forward_model_drawer,
             } = ForwardResources::create(
                 &self.capabilities,
@@ -632,6 +636,7 @@ impl GraphicsEngine {
 
             engine_context.forward_entity_drawer = forward_entity_drawer;
             engine_context.forward_indicator_drawer = forward_indicator_drawer;
+            engine_context.forward_danger_indicator_drawer = forward_danger_indicator_drawer;
             engine_context.forward_model_drawer = forward_model_drawer;
             engine_context.post_processing_effect_drawer = post_processing_effect_drawer;
             engine_context.post_processing_fxaa_drawer = post_processing_fxaa_drawer;
@@ -1247,6 +1252,10 @@ impl GraphicsEngine {
                     .forward_indicator_drawer
                     .draw(&mut render_pass, instruction.indicator.as_ref());
 
+                engine_context
+                    .forward_danger_indicator_drawer
+                    .draw(&mut render_pass, instruction.danger_decal_tiles.len() as u32);
+
                 engine_context.forward_entity_drawer.draw(&mut render_pass, ForwardEntityDrawData {
                     entities: instruction.entities,
                     pass_mode: EntityPassMode::Opaque,
@@ -1485,6 +1494,7 @@ impl UploadVisitor<'_> {
 struct ForwardResources {
     forward_entity_drawer: ForwardEntityDrawer,
     forward_indicator_drawer: ForwardIndicatorDrawer,
+    forward_danger_indicator_drawer: ForwardDangerIndicatorDrawer,
     forward_model_drawer: ForwardModelDrawer,
 }
 
@@ -1513,6 +1523,14 @@ impl ForwardResources {
             global_context,
             forward_pass_context,
         );
+        let forward_danger_indicator_drawer = ForwardDangerIndicatorDrawer::new(
+            capabilities,
+            device,
+            queue,
+            shader_compiler,
+            global_context,
+            forward_pass_context,
+        );
         let forward_model_drawer = ForwardModelDrawer::new(
             capabilities,
             device,
@@ -1525,6 +1543,7 @@ impl ForwardResources {
         Self {
             forward_entity_drawer,
             forward_indicator_drawer,
+            forward_danger_indicator_drawer,
             forward_model_drawer,
         }
     }

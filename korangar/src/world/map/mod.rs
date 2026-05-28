@@ -628,6 +628,55 @@ impl Map {
         });
     }
 
+    /// Collect one ground-conforming decal quad per tile in the AoE square,
+    /// each using that tile's own four corner heights so the overlay follows
+    /// uneven terrain. Pushes into `tiles`.
+    #[cfg_attr(feature = "debug", korangar_debug::profile)]
+    pub fn collect_aoe_decal_tiles(
+        &self,
+        tiles: &mut Vec<crate::graphics::DangerDecalInstance>,
+        position: TilePosition,
+        radius_tiles: u32,
+    ) {
+        const OFFSET: f32 = 1.0;
+
+        if position.x >= self.width || position.y >= self.height {
+            return;
+        }
+
+        let r = radius_tiles as i32;
+        let min_x = (position.x as i32 - r).max(0) as u16;
+        let min_y = (position.y as i32 - r).max(0) as u16;
+        let max_x = (position.x as i32 + r).min(self.width as i32 - 1) as u16;
+        let max_y = (position.y as i32 + r).min(self.height as i32 - 1) as u16;
+
+        for y in min_y..=max_y {
+            for x in min_x..=max_x {
+                let Some(tile) = self.get_tile(TilePosition { x, y }) else {
+                    continue;
+                };
+                if !tile.flags.contains(TileFlags::WALKABLE) {
+                    continue;
+                }
+
+                let base_x = x as f32 * GAT_TILE_SIZE;
+                let base_y = y as f32 * GAT_TILE_SIZE;
+
+                tiles.push(crate::graphics::DangerDecalInstance {
+                    upper_left: [base_x, tile.southwest_corner_height + OFFSET, base_y, 1.0],
+                    upper_right: [base_x + GAT_TILE_SIZE, tile.southeast_corner_height + OFFSET, base_y, 1.0],
+                    lower_left: [base_x, tile.northwest_corner_height + OFFSET, base_y + GAT_TILE_SIZE, 1.0],
+                    lower_right: [
+                        base_x + GAT_TILE_SIZE,
+                        tile.northeast_corner_height + OFFSET,
+                        base_y + GAT_TILE_SIZE,
+                        1.0,
+                    ],
+                });
+            }
+        }
+    }
+
     #[cfg_attr(feature = "debug", korangar_debug::profile)]
     pub fn ambient_light_color(&self) -> Color {
         self.lighting.ambient_light_color()

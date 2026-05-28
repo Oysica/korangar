@@ -1952,6 +1952,7 @@ impl Client {
                         duration: std::time::Duration::from_millis(cast_time_ms as u64),
                         triggered: false,
                     });
+
                 }
                 NetworkEvent::SetFriendList { friend_list } => {
                     *self.client_state.follow_mut(client_state().friend_list()) = friend_list;
@@ -3321,6 +3322,8 @@ impl Client {
                 top: input_report.mouse_position.top.clamp(0.0, window_size.y as f32),
             };
             let mut indicator_instruction = None;
+            let mut danger_decal_tiles: Vec<DangerDecalInstance> = Vec::new();
+            let mut danger_decal_color = Color::rgba_u8(0, 0, 0, 0);
             let mut water_instruction = None;
 
             // Marker
@@ -3617,14 +3620,6 @@ impl Client {
                         if elapsed >= cast.duration {
                             if !cast.triggered {
                                 cast.triggered = true;
-                                // Phase 2 hook: skill landed visual. For now log only
-                                // until effect-file mapping per skill_id is wired up.
-                                #[cfg(feature = "debug")]
-                                korangar_debug::logging::print_debug!(
-                                    "skill cast finished: id={:?} at {:?}",
-                                    cast.skill_id,
-                                    cast.target,
-                                );
                             }
                             continue;
                         }
@@ -3936,10 +3931,9 @@ impl Client {
                     _ => {}
                 }
 
-                // Danger telegraph: only MONSTER-cast ground skills paint a pulsing
-                // red warning zone on the floor so players can flee. NOTE: the
-                // indicator pipeline only renders one quad, so with multiple
-                // simultaneous monster casts only the nearest one shows.
+                // Danger telegraph: nearest in-progress monster/NPC ground cast
+                // paints a pulsing red filled decal on its own pass (does not use
+                // the move-tile indicator).
                 if currently_playing {
                     let now = std::time::Instant::now();
                     let entities = self.client_state.follow(client_state().entities());
@@ -3947,15 +3941,12 @@ impl Client {
                         .client_state
                         .try_follow(this_entity())
                         .map(|player| player.get_tile_position());
-
                     let is_hostile_caster = |caster_id: ragnarok_packets::EntityId| {
                         entities
                             .iter()
                             .find(|e| e.get_entity_id() == caster_id)
                             .is_some_and(|e| matches!(e.get_entity_type(), EntityType::Monster | EntityType::Npc))
                     };
-
-                    // Pick the still-in-progress monster/NPC cast nearest the player.
                     let nearest = self
                         .active_casts
                         .iter()
@@ -3972,7 +3963,6 @@ impl Client {
                             }
                             None => 0,
                         });
-
                     if let Some(cast) = nearest {
                         let elapsed = now.duration_since(cast.started_at);
                         let progress = if cast.duration.is_zero() {
@@ -3980,20 +3970,12 @@ impl Client {
                         } else {
                             (elapsed.as_secs_f32() / cast.duration.as_secs_f32()).clamp(0.0, 1.0)
                         };
-                        // Pulse faster as the cast nears completion (more urgent).
                         let pulse_speed = 6.0 + 10.0 * progress;
                         let pulse = 0.5 + 0.5 * (elapsed.as_secs_f32() * pulse_speed).sin();
-                        let red = (230.0 - 30.0 * progress) as u8;
-                        let green = (70.0 - 60.0 * progress).max(0.0) as u8;
-                        let blue = (70.0 - 60.0 * progress).max(0.0) as u8;
-                        let alpha = (110.0 + 70.0 * progress + 50.0 * pulse).min(230.0) as u8;
+                        let alpha = (110.0 + 70.0 * progress + 50.0 * pulse).min(235.0) as u8;
                         let radius = ground_skill_aoe_radius(cast.skill_id);
-                        map.render_aoe_indicator(
-                            &mut indicator_instruction,
-                            Color::rgba_u8(red, green, blue, alpha),
-                            cast.target,
-                            radius,
-                        );
+                        danger_decal_color = Color::rgba_u8(255, 40, 40, alpha);
+                        map.collect_aoe_decal_tiles(&mut danger_decal_tiles, cast.target, radius);
                     }
                 }
 
@@ -4069,6 +4051,8 @@ impl Client {
                     sdsm_enabled,
                 },
                 indicator: indicator_instruction,
+                danger_decal_tiles: &danger_decal_tiles,
+                danger_color: danger_decal_color,
                 interface: interface_instructions.as_slice(),
                 bottom_layer_rectangles: bottom_layer_instructions.as_slice(),
                 middle_layer_rectangles: middle_layer_instructions.as_slice(),

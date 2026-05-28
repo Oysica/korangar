@@ -76,6 +76,18 @@ pub(crate) trait Prepare {
     fn upload(&mut self, _device: &Device, _staging_belt: &mut StagingBelt, _command_encoder: &mut CommandEncoder);
 }
 
+/// One ground-conforming danger-decal tile (four world-space corners,
+/// each as a homogeneous vec4). Uploaded as a storage buffer for instanced
+/// rendering so the decal follows uneven terrain tile-by-tile.
+#[derive(Copy, Clone, Default, Pod, Zeroable)]
+#[repr(C)]
+pub(crate) struct DangerDecalInstance {
+    pub upper_left: [f32; 4],
+    pub upper_right: [f32; 4],
+    pub lower_left: [f32; 4],
+    pub lower_right: [f32; 4],
+}
+
 #[derive(Copy, Clone, Default, Pod, Zeroable)]
 #[repr(C)]
 pub(crate) struct GlobalUniforms {
@@ -86,6 +98,7 @@ pub(crate) struct GlobalUniforms {
     inverse_view_projection: [[f32; 4]; 4],
     indicator_positions: [[f32; 4]; 4],
     indicator_color: [f32; 4],
+    danger_color: [f32; 4],
     ambient_color: [f32; 4],
     camera_position: [f32; 4],
     forward_size: [u32; 2],
@@ -364,6 +377,7 @@ pub(crate) struct GlobalContext {
     pub(crate) high_quality_interface: bool,
     pub(crate) solid_pixel_texture: Arc<Texture>,
     pub(crate) walk_indicator_texture: Arc<Texture>,
+    pub(crate) danger_indicator_texture: Arc<Texture>,
     pub(crate) forward_depth_texture: AttachmentTexture,
     pub(crate) picker_buffer_texture: AttachmentTexture,
     pub(crate) picker_depth_texture: AttachmentTexture,
@@ -382,6 +396,7 @@ pub(crate) struct GlobalContext {
     pub(crate) directional_light_uniforms_buffer: Buffer<DirectionalLightUniforms>,
     pub(crate) directional_light_partitions_buffer: Buffer<DirectionalLightPartition>,
     pub(crate) point_light_data_buffer: Buffer<PointLightData>,
+    pub(crate) danger_decal_buffer: Buffer<DangerDecalInstance>,
     #[cfg(feature = "debug")]
     pub(crate) debug_uniforms_buffer: Buffer<DebugUniforms>,
     pub(crate) picker_value_buffer: Buffer<u64>,
@@ -410,6 +425,7 @@ pub(crate) struct GlobalContext {
     directional_light_uniforms: DirectionalLightUniforms,
     directional_light_partitions_data: Vec<DirectionalLightPartition>,
     point_light_data: Vec<PointLightData>,
+    danger_decal_data: Vec<DangerDecalInstance>,
     #[cfg(feature = "debug")]
     debug_uniforms: DebugUniforms,
 }
@@ -418,6 +434,8 @@ impl Prepare for GlobalContext {
     fn prepare(&mut self, _device: &Device, instructions: &RenderInstruction) {
         self.directional_light_partitions_data.clear();
         self.point_light_data.clear();
+        self.danger_decal_data.clear();
+        self.danger_decal_data.extend_from_slice(instructions.danger_decal_tiles);
 
         #[allow(unused_mut)]
         let mut ambient_light_color = instructions.uniforms.ambient_light_color;
@@ -450,6 +468,8 @@ impl Prepare for GlobalContext {
                 )
             });
 
+        let danger_color = instructions.danger_color;
+
         let view_projection = instructions.uniforms.projection_matrix * instructions.uniforms.view_matrix;
 
         self.global_uniforms = GlobalUniforms {
@@ -465,6 +485,7 @@ impl Prepare for GlobalContext {
             inverse_view_projection: view_projection.invert().unwrap_or_else(Matrix4::identity).into(),
             indicator_positions: indicator_positions.into(),
             indicator_color: indicator_color.components_linear(),
+            danger_color: danger_color.components_linear(),
             ambient_color: ambient_light_color.components_linear(),
             camera_position: instructions.uniforms.camera_position.into(),
             forward_size: [self.forward_size.width as u32, self.forward_size.height as u32],
@@ -553,6 +574,12 @@ impl Prepare for GlobalContext {
         recreated |=
             self.directional_light_partitions_buffer
                 .write(device, staging_belt, command_encoder, &self.directional_light_partitions_data);
+
+        if !self.danger_decal_data.is_empty() {
+            recreated |= self
+                .danger_decal_buffer
+                .write(device, staging_belt, command_encoder, &self.danger_decal_data);
+        }
 
         #[cfg(feature = "debug")]
         {
@@ -656,6 +683,10 @@ impl GlobalContext {
             false,
         ));
         let walk_indicator_texture = texture_loader.get_or_load("grid.tga", ImageType::Color).unwrap();
+        // Danger-zone decal texture (falls back to the grid if the asset is missing).
+        let danger_indicator_texture = texture_loader
+            .get_or_load("danger_zone.png", ImageType::Color)
+            .unwrap_or_else(|_| walk_indicator_texture.clone());
         let forward_textures = Self::create_forward_textures(device, forward_size, msaa);
         let picker_textures = Self::create_picker_textures(device, screen_size);
         let directional_shadow_map_texture = Self::create_directional_shadow_textures(device, directional_shadow_size);
@@ -716,6 +747,14 @@ impl GlobalContext {
             "point light data",
             BufferUsages::COPY_DST | BufferUsages::STORAGE,
             (128 * size_of::<PointLightData>()) as _,
+        );
+
+        // Up to 1024 ground-conforming danger-decal tiles (e.g. several large AoEs).
+        let danger_decal_buffer = Buffer::with_capacity(
+            device,
+            "danger decal tiles",
+            BufferUsages::COPY_DST | BufferUsages::STORAGE,
+            (1024 * size_of::<DangerDecalInstance>()) as _,
         );
 
         let tile_light_indices_buffer = Self::create_tile_light_indices_buffer(device, forward_size);
@@ -815,6 +854,7 @@ impl GlobalContext {
             high_quality_interface,
             solid_pixel_texture,
             walk_indicator_texture,
+            danger_indicator_texture,
             forward_depth_texture: forward_textures.forward_depth_texture,
             picker_buffer_texture: picker_textures.picker_buffer_texture,
             picker_depth_texture: picker_textures.picker_depth_texture,
@@ -844,6 +884,7 @@ impl GlobalContext {
             picker_value_buffer,
             directional_light_partitions_buffer,
             point_light_data_buffer,
+            danger_decal_buffer,
             anti_aliasing_resources,
             nearest_sampler,
             linear_sampler,
@@ -860,6 +901,7 @@ impl GlobalContext {
             directional_light_uniforms: DirectionalLightUniforms::default(),
             directional_light_partitions_data: Vec::default(),
             point_light_data: Vec::default(),
+            danger_decal_data: Vec::default(),
             #[cfg(feature = "debug")]
             debug_uniforms: DebugUniforms::default(),
             interval_data_buffer,

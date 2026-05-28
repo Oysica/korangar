@@ -10,6 +10,7 @@ public struct GlobalUniforms {
     public var inverse_view_projection: float4x4;
     public var indicator_positions: float4x4;
     public var indicator_color: float4;
+    public var danger_color: float4;
     public var ambient_color: float4;
     public var camera_position: float4;
     public var forward_size: uint2;

@@ -9,7 +9,7 @@ use super::color::Color;
 use super::settings::RenderOptions;
 use super::vertices::ModelVertex;
 use super::{Buffer, ShadowDetail, ShadowMethod, Texture, TextureSet, TileVertex, WaterVertex};
-use crate::graphics::{CornerDiameter, ScreenClip, ScreenPosition, ScreenSize, ShadowPadding};
+use crate::graphics::{CornerDiameter, DangerDecalInstance, ScreenClip, ScreenPosition, ScreenSize, ShadowPadding};
 #[cfg(feature = "debug")]
 use crate::world::MarkerIdentifier;
 
@@ -19,6 +19,8 @@ pub struct RenderInstruction<'a> {
     pub picker_position: ScreenPosition,
     pub uniforms: Uniforms,
     pub indicator: Option<IndicatorInstruction>,
+    pub danger_decal_tiles: &'a [DangerDecalInstance],
+    pub danger_color: Color,
     pub interface: &'a [InterfaceRectangleInstruction],
     /// Between 3D world and effects.
     pub bottom_layer_rectangles: &'a [RectangleInstruction],

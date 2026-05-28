@@ -84,6 +84,20 @@ impl Effect {
         position: Point3<f32>,
         intensity: f32,
     ) {
+        self.render_with_tint(renderer, camera, frame_timer, position, Color::monochrome(intensity));
+    }
+
+    /// Render with each frame's color multiplied component-wise by `tint`.
+    /// Use a coloured tint (e.g. red) to recolour an effect, or a monochrome
+    /// tint to merely scale brightness.
+    pub fn render_with_tint(
+        &self,
+        renderer: &mut EffectRenderer,
+        camera: &dyn Camera,
+        frame_timer: &FrameTimer,
+        position: Point3<f32>,
+        tint: Color,
+    ) {
         for layer in &self.layers {
             let Some(frame) = layer.interpolate_frame(frame_timer) else {
                 continue;
@@ -92,6 +106,13 @@ impl Effect {
             if frame.texture_index > layer.textures.len() {
                 continue;
             }
+
+            let tinted = Color {
+                red: frame.color.red * tint.red,
+                green: frame.color.green * tint.green,
+                blue: frame.color.blue * tint.blue,
+                alpha: frame.color.alpha * tint.alpha,
+            };
 
             renderer.render_effect(
                 camera,
@@ -111,7 +132,7 @@ impl Effect {
                 ],
                 frame.offset,
                 frame.angle,
-                frame.color * intensity,
+                tinted,
                 frame.source_blend_factor,
                 frame.destination_blend_factor,
             );
@@ -423,7 +444,7 @@ pub struct SimpleEffect {
     frame_timer: FrameTimer,
     center: EffectCenter,
     effect_offset: Vector3<f32>,
-    intensity: f32,
+    tint: Color,
     gets_deleted: bool,
 }
 
@@ -440,7 +461,7 @@ impl SimpleEffect {
             frame_timer,
             center,
             effect_offset,
-            intensity,
+            tint: Color::monochrome(intensity),
             gets_deleted: false,
         }
     }
@@ -469,12 +490,12 @@ impl EffectBase for SimpleEffect {
 
     fn render(&self, renderer: &mut EffectRenderer, camera: &dyn Camera) {
         if !self.gets_deleted {
-            self.effect.render_with_intensity(
+            self.effect.render_with_tint(
                 renderer,
                 camera,
                 &self.frame_timer,
                 self.center.to_position() + self.effect_offset,
-                self.intensity,
+                self.tint,
             );
         }
     }

@@ -1,8 +1,10 @@
+mod danger_indicator;
 mod entity;
 mod indicator;
 mod model;
 mod wave;
 
+pub(crate) use danger_indicator::ForwardDangerIndicatorDrawer;
 pub(crate) use entity::{EntityPassMode, ForwardEntityDrawData, ForwardEntityDrawer};
 pub(crate) use indicator::ForwardIndicatorDrawer;
 pub(crate) use model::{ForwardModelDrawData, ForwardModelDrawer, ModelPassMode};
