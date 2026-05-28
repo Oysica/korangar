@@ -203,6 +203,24 @@ fn ground_skill_effect_candidates(skill_id: SkillId) -> &'static [&'static str] 
     }
 }
 
+/// Fallback cooldown per skill (milliseconds). Used when the server doesn't
+/// send 0x043D for this skill.
+fn estimate_cooldown_ms(skill_id: SkillId) -> u32 {
+    match skill_id.0 {
+        83 => 2000,  // WZ_METEOR
+        89 => 4000,  // WZ_STORMGUST
+        85 => 2500,  // WZ_VERMILION
+        88 => 1500,  // WZ_HEAVENDRIVE
+        80 => 2000,  // WZ_FIREPILLAR
+        70 => 3000,  // PR_MAGNUS
+        81 => 1500,  // PR_SANCTUARY
+        17 => 1000,  // MG_THUNDERSTORM
+        21 => 800,   // MG_FROSTDIVER
+        87 => 2000,  // WZ_QUAGMIRE
+        _ => 500,    // Default short global CD.
+    }
+}
+
 /// Approximate cast time per skill (milliseconds). The 0x0117 packet ships
 /// a server tick value, not the duration, so we look it up locally. These are
 /// stock rAthena defaults at max level — close enough for the cast-bar
@@ -456,6 +474,9 @@ struct Client {
     /// Active skill casts indexed by caster entity. Used to render a cast bar
     /// over the caster and to play the skill effect when the cast completes.
     active_casts: Vec<ActiveCast>,
+
+    /// In-progress cooldowns: (skill_id, started_at, duration).
+    active_cooldowns: Vec<(SkillId, std::time::Instant, std::time::Duration)>,
 
     /// Set by InputEvent handlers when they want the next frame to switch
     /// to a new mouse mode (e.g. entering ground-skill aiming).
@@ -874,6 +895,7 @@ impl Client {
             last_move_send_at: None,
             pending_mouse_mode: None,
             active_casts: Vec::new(),
+            active_cooldowns: Vec::new(),
         })
     }
 
@@ -1889,6 +1911,25 @@ impl Client {
                     }
                     let _ = position;
                 }
+                NetworkEvent::SkillCooldown {
+                    skill_id,
+                    until_client_tick,
+                } => {
+                    let now_tick = self.game_timer.get_client_tick();
+                    let remaining_ms = until_client_tick.0.saturating_sub(now_tick.0).max(0);
+                    let duration_ms = if remaining_ms > 0 {
+                        remaining_ms
+                    } else {
+                        estimate_cooldown_ms(skill_id)
+                    };
+                    // Replace any existing cooldown for this skill.
+                    self.active_cooldowns.retain(|(id, _, _)| *id != skill_id);
+                    self.active_cooldowns.push((
+                        skill_id,
+                        std::time::Instant::now(),
+                        std::time::Duration::from_millis(duration_ms as u64),
+                    ));
+                }
                 NetworkEvent::GroundSkillCastStart {
                     caster_id,
                     skill_id,
@@ -2532,6 +2573,16 @@ impl Client {
                                         && learned_skill.skill_level.0 >= learnable_skill.maximum_level.0
                                 })
                     {
+                        // Gate on local cooldown (fallback when server didn't send 0x043D yet).
+                        let now = std::time::Instant::now();
+                        if self
+                            .active_cooldowns
+                            .iter()
+                            .any(|(id, start, dur)| *id == learnable_skill.skill_id && now.duration_since(*start) < *dur)
+                        {
+                            continue;
+                        }
+                        let mut consumed = false;
                         match learned_skill.skill_type {
                             SkillType::Passive => {}
                             SkillType::Attack => {
@@ -2541,10 +2592,13 @@ impl Client {
                                         learnable_skill.maximum_level,
                                         entity_id,
                                     );
+                                    consumed = true;
                                 }
                             }
                             SkillType::Ground | SkillType::Trap => {
                                 // Enter aiming mode: red marker follows cursor until left-click confirms.
+                                // No cooldown set here; the cooldown is applied (and the server
+                                // gets the cast packet) when the user actually clicks a tile.
                                 self.pending_mouse_mode = Some(MouseInputMode::AimingGroundSkill {
                                     skill_id: learnable_skill.skill_id,
                                     skill_level: learnable_skill.maximum_level,
@@ -2557,6 +2611,7 @@ impl Client {
                                         learnable_skill.maximum_level,
                                         self.client_state.follow(this_entity().manually_asserted()).get_entity_id(),
                                     );
+                                    consumed = true;
                                 }
                                 false => {
                                     let _ = self.networking_system.cast_skill(
@@ -2564,6 +2619,7 @@ impl Client {
                                         learnable_skill.maximum_level,
                                         self.client_state.follow(this_entity().manually_asserted()).get_entity_id(),
                                     );
+                                    consumed = true;
                                 }
                             },
                             SkillType::Support => {
@@ -2580,7 +2636,16 @@ impl Client {
                                         self.client_state.follow(this_entity().manually_asserted()).get_entity_id(),
                                     );
                                 }
+                                consumed = true;
                             }
+                        }
+                        if consumed {
+                            self.active_cooldowns.retain(|(id, _, _)| *id != learnable_skill.skill_id);
+                            self.active_cooldowns.push((
+                                learnable_skill.skill_id,
+                                now,
+                                std::time::Duration::from_millis(estimate_cooldown_ms(learnable_skill.skill_id) as u64),
+                            ));
                         }
                     }
                 }
@@ -3521,6 +3586,28 @@ impl Client {
                     );
                 }
 
+                // Sync active_cooldowns → ClientState.skill_cooldowns map (remaining seconds).
+                {
+                    let now = std::time::Instant::now();
+                    self.active_cooldowns
+                        .retain(|(_, start, dur)| now.duration_since(*start) < *dur);
+                    let snapshot: Vec<(u16, f32)> = self
+                        .active_cooldowns
+                        .iter()
+                        .map(|(id, start, dur)| {
+                            let remaining = (*dur - now.duration_since(*start)).as_secs_f32();
+                            (id.0, remaining)
+                        })
+                        .collect();
+                    self.client_state
+                        .update_value_with(client_state().skill_cooldowns(), move |map| {
+                            map.clear();
+                            for (id, remaining) in snapshot.iter() {
+                                map.insert(*id, *remaining);
+                            }
+                        });
+                }
+
                 // Render cast bars over casting entities + trigger skill effect on completion.
                 {
                     let now = std::time::Instant::now();
@@ -3648,6 +3735,13 @@ impl Client {
                                         let _ = self
                                             .networking_system
                                             .cast_ground_skill(skill_id, skill_level, TilePosition { x, y });
+                                        let now = std::time::Instant::now();
+                                        self.active_cooldowns.retain(|(id, _, _)| *id != skill_id);
+                                        self.active_cooldowns.push((
+                                            skill_id,
+                                            now,
+                                            std::time::Duration::from_millis(estimate_cooldown_ms(skill_id) as u64),
+                                        ));
                                     }
                                     interface_frame.set_mouse_mode(MouseMode::<ClientState>::Default);
                                 }
@@ -3840,6 +3934,67 @@ impl Client {
                         }
                     }
                     _ => {}
+                }
+
+                // Danger telegraph: only MONSTER-cast ground skills paint a pulsing
+                // red warning zone on the floor so players can flee. NOTE: the
+                // indicator pipeline only renders one quad, so with multiple
+                // simultaneous monster casts only the nearest one shows.
+                if currently_playing {
+                    let now = std::time::Instant::now();
+                    let entities = self.client_state.follow(client_state().entities());
+                    let player_position = self
+                        .client_state
+                        .try_follow(this_entity())
+                        .map(|player| player.get_tile_position());
+
+                    let is_hostile_caster = |caster_id: ragnarok_packets::EntityId| {
+                        entities
+                            .iter()
+                            .find(|e| e.get_entity_id() == caster_id)
+                            .is_some_and(|e| matches!(e.get_entity_type(), EntityType::Monster | EntityType::Npc))
+                    };
+
+                    // Pick the still-in-progress monster/NPC cast nearest the player.
+                    let nearest = self
+                        .active_casts
+                        .iter()
+                        .filter(|c| {
+                            !c.triggered
+                                && now.duration_since(c.started_at) < c.duration
+                                && is_hostile_caster(c.caster_id)
+                        })
+                        .min_by_key(|c| match player_position {
+                            Some(p) => {
+                                let dx = c.target.x as i32 - p.x as i32;
+                                let dy = c.target.y as i32 - p.y as i32;
+                                (dx * dx + dy * dy) as u32
+                            }
+                            None => 0,
+                        });
+
+                    if let Some(cast) = nearest {
+                        let elapsed = now.duration_since(cast.started_at);
+                        let progress = if cast.duration.is_zero() {
+                            1.0
+                        } else {
+                            (elapsed.as_secs_f32() / cast.duration.as_secs_f32()).clamp(0.0, 1.0)
+                        };
+                        // Pulse faster as the cast nears completion (more urgent).
+                        let pulse_speed = 6.0 + 10.0 * progress;
+                        let pulse = 0.5 + 0.5 * (elapsed.as_secs_f32() * pulse_speed).sin();
+                        let red = (230.0 - 30.0 * progress) as u8;
+                        let green = (70.0 - 60.0 * progress).max(0.0) as u8;
+                        let blue = (70.0 - 60.0 * progress).max(0.0) as u8;
+                        let alpha = (110.0 + 70.0 * progress + 50.0 * pulse).min(230.0) as u8;
+                        let radius = ground_skill_aoe_radius(cast.skill_id);
+                        map.render_aoe_indicator(
+                            &mut indicator_instruction,
+                            Color::rgba_u8(red, green, blue, alpha),
+                            cast.target,
+                            radius,
+                        );
+                    }
                 }
 
                 let in_game_theme_path = client_state().in_game_theme().tooltip();

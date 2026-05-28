@@ -239,6 +239,12 @@ pub enum NetworkEvent {
         skill_level: SkillLevel,
         position: TilePosition,
     },
+    /// Server-driven skill cooldown notification (ZC_SKILL_DELAY 0x043D).
+    /// `until_client_tick` is the server tick when the cooldown ends.
+    SkillCooldown {
+        skill_id: SkillId,
+        until_client_tick: ragnarok_packets::ClientTick,
+    },
     RemoveSkillUnit {
         entity_id: EntityId,
     },

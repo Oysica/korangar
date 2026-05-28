@@ -492,7 +492,10 @@ where
         NetworkEvent::AddChoiceButtons { choices, npc_id }
     })?;
     packet_handler.register_noop::<DisplaySpecialEffectPacket>()?;
-    packet_handler.register_noop::<DisplaySkillCooldownPacket>()?;
+    packet_handler.register(|packet: DisplaySkillCooldownPacket| NetworkEvent::SkillCooldown {
+        skill_id: packet.skill_id,
+        until_client_tick: packet.until,
+    })?;
     packet_handler.register_noop::<DisplaySkillEffectAndDamagePacket>()?;
     packet_handler.register(|packet: DisplaySkillEffectNoDamagePacket| NetworkEvent::HealEffect {
         entity_id: packet.destination_entity_id,

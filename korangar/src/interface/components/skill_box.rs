@@ -14,7 +14,7 @@ use crate::loaders::{FontSize, OverflowBehavior};
 use crate::renderer::LayoutExt;
 use crate::state::skills::{LearnableSkill, LearnedSkill};
 use crate::state::theme::{GlobalThemePathExt, InterfaceThemePathExt, SkillTreeThemePathExt};
-use crate::state::{ClientState, client_theme};
+use crate::state::{ClientState, ClientStatePathExt, client_state, client_theme};
 
 struct LevelDisplay {
     maximum_level: SkillLevel,
@@ -197,12 +197,26 @@ where
         }
 
         if let Some(learnable_skill) = state.try_get(&self.learnable_skill_path) {
-            let color = match state
+            // Hotbar cooldown: read once so we can both grey the sprite and draw the overlay later.
+            let cooldown_remaining = if let SkillSource::Hotbar { .. } = self.source {
+                let cooldowns_path = client_state().skill_cooldowns();
+                state.get(&cooldowns_path).get(&learnable_skill.skill_id.0).copied()
+            } else {
+                None
+            };
+            let on_cooldown = cooldown_remaining.map_or(false, |r| r > 0.0);
+
+            let base_color = match state
                 .try_get(&self.learned_skill_path)
                 .is_some_and(|learned_skill| learned_skill.skill_level.0 >= learnable_skill.maximum_level.0)
             {
                 true => Color::WHITE,
                 false => *state.get(&client_theme().skill_tree().unlearned_skill_color()),
+            };
+            // Desaturate / dim the sprite while on cooldown.
+            let color = match on_cooldown {
+                true => Color::rgb_u8(95, 95, 95),
+                false => base_color,
             };
 
             if let Some(actions) = &learnable_skill.actions
@@ -233,6 +247,34 @@ where
                 VerticalAlignment::Top { offset: 3.0 },
                 OverflowBehavior::Shrink,
             );
+        }
+
+        // Cooldown countdown (hotbar slots only). The sprite is already greyed
+        // out by `on_cooldown` above; we just overlay the remaining seconds.
+        if let SkillSource::Hotbar { .. } = self.source
+            && let Some(learnable_skill) = state.try_get(&self.learnable_skill_path)
+        {
+            let cooldowns_path = client_state().skill_cooldowns();
+            let cooldowns = state.get(&cooldowns_path);
+            if let Some(remaining) = cooldowns.get(&learnable_skill.skill_id.0).copied()
+                && remaining > 0.0
+            {
+                let text = if remaining >= 10.0 {
+                    format!("{}", remaining.ceil() as u32)
+                } else {
+                    format!("{:.1}", remaining)
+                };
+                layout.add_text(
+                    layout_info.area,
+                    Box::leak(text.into_boxed_str()),
+                    FontSize(15.0),
+                    Color::WHITE,
+                    Color::rgba_u8(0, 0, 0, 220),
+                    HorizontalAlignment::Center { offset: 0.0, border: 0.0 },
+                    VerticalAlignment::Center { offset: 0.0 },
+                    OverflowBehavior::Shrink,
+                );
+            }
         }
 
         // Show Q/W/E/R/D/F label at bottom-right for hotbar slots 0..6.

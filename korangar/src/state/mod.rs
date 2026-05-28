@@ -9,6 +9,7 @@ pub mod skills;
 pub mod theme;
 
 use std::cell::Cell;
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use korangar_interface::application::Application;
@@ -184,6 +185,11 @@ pub struct ClientState {
     inventory: Inventory,
     /// Player skill tree.
     skill_tree: SkillTree,
+    /// Remaining cooldown per skill id (seconds). Updated each frame by the
+    /// client from `Client.active_cooldowns`. SkillBox reads this to render the
+    /// dark overlay + countdown text.
+    #[hidden_element]
+    skill_cooldowns: HashMap<u16, f32>,
 
     /// List of all available character servers.
     character_servers: Vec<CharacterServerInformation>,
@@ -337,6 +343,7 @@ impl ClientState {
             let hotbar = Hotbar::default();
             let inventory = Inventory::default();
             let skill_tree = SkillTree::default();
+            let skill_cooldowns: HashMap<u16, f32> = HashMap::new();
             let skill_tree_window = SkillTreeWindowState::default();
         });
 
@@ -408,6 +415,7 @@ impl ClientState {
             hotbar,
             inventory,
             skill_tree,
+            skill_cooldowns,
             character_servers,
             character_slots,
             currently_deleting,
