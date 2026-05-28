@@ -115,10 +115,13 @@ impl Archive for NativeArchive {
     }
 
     fn get_files_with_extension(&self, files: &mut Vec<String>, extensions: &[&str]) {
+        // NOTE: the historical filter required `row.flags == 0x01` (uncompressed
+        // plain file) which excluded most .str / encrypted entries. Match on
+        // extension only so listings return what's actually loadable.
         let found_files = self
             .file_table
             .iter()
-            .filter(|(file_name, row)| row.flags == 0x01 && extensions.iter().any(|extension| file_name.ends_with(extension)))
+            .filter(|(file_name, _)| extensions.iter().any(|extension| file_name.ends_with(extension)))
             .map(|(file_name, _)| file_name.clone());
 
         files.extend(found_files);

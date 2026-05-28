@@ -125,6 +125,104 @@ use crate::world::*;
 const CLIENT_NAME: &str = "Korangar";
 const ROLLING_CUTTER_ID: SkillId = SkillId(2036);
 
+/// Draw a cast progress bar floating above the caster entity.
+fn render_cast_bar(
+    renderer: &GameInterfaceRenderer,
+    camera: &dyn Camera,
+    entity: &world::Entity,
+    progress: f32,
+    window_size: ScreenSize,
+) {
+    let world_position = entity.get_world_position();
+    // Lift the bar slightly above the entity status bar (which sits at ~+5 vertical).
+    let clip_space = camera.view_projection_matrix() * world_position.to_homogeneous();
+    let screen_position = camera.clip_to_screen_space(clip_space);
+    let center = ScreenPosition {
+        // `screen_position` is normalised [0,1] in window space.
+        // Lift the bar well above the entity sprite (entity world_position is
+        // at the feet, sprite extends upward roughly 50px at default zoom).
+        left: screen_position.x * window_size.width,
+        top: screen_position.y * window_size.height - 60.0,
+    };
+
+    const BAR_WIDTH: f32 = 80.0;
+    const BAR_HEIGHT: f32 = 6.0;
+    const BORDER: f32 = 1.0;
+
+    // `render_bar` treats its `position` argument as the bar's centre on the x
+    // axis and shifts it left by half the width internally. The background is
+    // drawn with `render_rectangle`, which takes the top-left, so we compute
+    // both anchors from the same `center`.
+    let bar_left = center - ScreenSize::only_width(BAR_WIDTH / 2.0);
+    let bg_origin = bar_left - ScreenSize::uniform(BORDER);
+    let bg_size = ScreenSize {
+        width: BAR_WIDTH + BORDER * 2.0,
+        height: BAR_HEIGHT + BORDER * 2.0,
+    };
+
+    renderer.render_rectangle(bg_origin, bg_size, Color::rgba_u8(0, 0, 0, 200));
+    renderer.render_bar(
+        center,
+        ScreenSize {
+            width: BAR_WIDTH,
+            height: BAR_HEIGHT,
+        },
+        Color::rgb_u8(240, 200, 60),
+        1.0,
+        progress,
+    );
+}
+
+/// An in-progress skill cast tracked client-side so we can render a cast bar
+/// over the caster and play the skill effect when the cast completes.
+#[allow(dead_code)]
+struct ActiveCast {
+    caster_id: ragnarok_packets::EntityId,
+    skill_id: SkillId,
+    skill_level: ragnarok_packets::SkillLevel,
+    target: TilePosition,
+    started_at: std::time::Instant,
+    duration: std::time::Duration,
+    /// True after the on-complete effect was triggered (so we don't fire it twice).
+    triggered: bool,
+}
+
+/// Candidate .str effect files per ground skill, resolved from the actual
+/// PRERO GRF listings.
+fn ground_skill_effect_candidates(skill_id: SkillId) -> &'static [&'static str] {
+    match skill_id.0 {
+        17 => &["thunderstorm.str"],                  // MG_THUNDERSTORM
+        80 => &["firepillar.str", "firepillarbomb.str"], // WZ_FIREPILLAR
+        70 => &["magnus.str"],                        // PR_MAGNUS
+        81 => &["sanctuary.str"],                     // PR_SANCTUARY
+        83 => &["meteor1.str"],                       // WZ_METEOR (one impact)
+        85 => &["lightning.str"],                     // WZ_VERMILION
+        87 => &["quagmire.str"],                      // WZ_QUAGMIRE
+        89 => &["stormgust.str"],                     // WZ_STORMGUST
+        _ => &[],
+    }
+}
+
+/// Approximate cast time per skill (milliseconds). The 0x0117 packet ships
+/// a server tick value, not the duration, so we look it up locally. These are
+/// stock rAthena defaults at max level — close enough for the cast-bar
+/// telegraph until we parse `skill_db` properly.
+fn estimate_cast_time_ms(skill_id: SkillId) -> u32 {
+    match skill_id.0 {
+        83 => 5300,  // WZ_METEOR
+        85 => 5500,  // WZ_VERMILION
+        88 => 1500,  // WZ_HEAVENDRIVE
+        89 => 4800,  // WZ_STORMGUST
+        80 => 2000,  // WZ_FIREPILLAR
+        70 => 4000,  // PR_MAGNUS
+        81 => 3000,  // PR_SANCTUARY
+        17 => 1500,  // MG_THUNDERSTORM
+        21 => 1800,  // MG_FROSTDIVER (frost wall area variant)
+        87 => 1500,  // WZ_QUAGMIRE
+        _ => 1500,
+    }
+}
+
 /// Map a skill id to its visual AoE radius in tiles for the aiming telegraph.
 /// The center tile plus radius tiles in each direction = (2 * radius + 1) wide.
 /// Falls back to 1 for unknown ground skills.
@@ -354,6 +452,10 @@ struct Client {
 
     last_move_destination: Option<TilePosition>,
     last_move_send_at: Option<std::time::Instant>,
+
+    /// Active skill casts indexed by caster entity. Used to render a cast bar
+    /// over the caster and to play the skill effect when the cast completes.
+    active_casts: Vec<ActiveCast>,
 
     /// Set by InputEvent handlers when they want the next frame to switch
     /// to a new mouse mode (e.g. entering ground-skill aiming).
@@ -771,6 +873,7 @@ impl Client {
             last_move_destination: None,
             last_move_send_at: None,
             pending_mouse_mode: None,
+            active_casts: Vec::new(),
         })
     }
 
@@ -1755,6 +1858,59 @@ impl Client {
                 }
                 NetworkEvent::RemoveSkillUnit { entity_id } => {
                     self.effect_holder.remove_unit(entity_id);
+                }
+                NetworkEvent::GroundSkillLanded {
+                    caster_id: _,
+                    skill_id,
+                    skill_level: _,
+                    position,
+                } => {
+                    let Some(map) = &self.map else { continue };
+                    let Some(world_position) = map.get_world_position(position) else { continue };
+                    // Try each candidate effect file; fall back to firewall.str so
+                    // we always show something.
+                    let mut loaded = None;
+                    for candidate in ground_skill_effect_candidates(skill_id) {
+                        if let Ok(effect) = self.effect_loader.get_or_load(candidate, &self.texture_loader) {
+                            loaded = Some(effect);
+                            break;
+                        }
+                    }
+                    if let Some(effect) = loaded {
+                        let frame_timer = effect.new_frame_timer();
+                        self.effect_holder.add_effect(Box::new(SimpleEffect::with_intensity(
+                            effect,
+                            frame_timer,
+                            EffectCenter::Position(world_position),
+                            Vector3::new(0.0, 0.0, 0.0),
+                            // Boost sprite color so .str effects don't look washed out.
+                            2.0,
+                        )));
+                    }
+                    let _ = position;
+                }
+                NetworkEvent::GroundSkillCastStart {
+                    caster_id,
+                    skill_id,
+                    skill_level,
+                    position,
+                    cast_time_ms,
+                } => {
+                    // From 0x07FB (UseSkillSuccessPacket), `delay_time` is the
+                    // cast duration in milliseconds. Fall back to a table when
+                    // the server sends 0 (instant cast still wants a tiny bar).
+                    let cast_time_ms = if cast_time_ms > 0 { cast_time_ms } else { estimate_cast_time_ms(skill_id) };
+                    // Replace any previous cast by this entity (single concurrent cast).
+                    self.active_casts.retain(|cast| cast.caster_id != caster_id);
+                    self.active_casts.push(ActiveCast {
+                        caster_id,
+                        skill_id,
+                        skill_level,
+                        target: position,
+                        started_at: std::time::Instant::now(),
+                        duration: std::time::Duration::from_millis(cast_time_ms as u64),
+                        triggered: false,
+                    });
                 }
                 NetworkEvent::SetFriendList { friend_list } => {
                     *self.client_state.follow_mut(client_state().friend_list()) = friend_list;
@@ -3363,6 +3519,48 @@ impl Client {
                         self.client_state.follow(client_state().world_theme()),
                         screen_size,
                     );
+                }
+
+                // Render cast bars over casting entities + trigger skill effect on completion.
+                {
+                    let now = std::time::Instant::now();
+                    let entities = self.client_state.follow(client_state().entities());
+                    for cast in self.active_casts.iter_mut() {
+                        let elapsed = now.duration_since(cast.started_at);
+                        if elapsed >= cast.duration {
+                            if !cast.triggered {
+                                cast.triggered = true;
+                                // Phase 2 hook: skill landed visual. For now log only
+                                // until effect-file mapping per skill_id is wired up.
+                                #[cfg(feature = "debug")]
+                                korangar_debug::logging::print_debug!(
+                                    "skill cast finished: id={:?} at {:?}",
+                                    cast.skill_id,
+                                    cast.target,
+                                );
+                            }
+                            continue;
+                        }
+                        let Some(entity) = entities.iter().find(|e| e.get_entity_id() == cast.caster_id) else {
+                            continue;
+                        };
+                        let progress = if cast.duration.is_zero() {
+                            1.0
+                        } else {
+                            (elapsed.as_secs_f32() / cast.duration.as_secs_f32()).clamp(0.0, 1.0)
+                        };
+                        render_cast_bar(
+                            &self.middle_interface_renderer,
+                            current_camera,
+                            entity,
+                            progress,
+                            screen_size,
+                        );
+                    }
+                    // Drop casts older than 5 seconds past their end to keep the list bounded.
+                    self.active_casts.retain(|cast| {
+                        now.duration_since(cast.started_at) < cast.duration + std::time::Duration::from_secs(5)
+                    });
                 }
 
                 let mouse_mode = self.interface.get_mouse_mode();

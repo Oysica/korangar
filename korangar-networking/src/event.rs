@@ -221,6 +221,24 @@ pub enum NetworkEvent {
         unit_id: UnitId,
         position: TilePosition,
     },
+    /// Notification that an entity is casting a ground-targeted skill.
+    /// `cast_time_ms` is the duration of the cast; show a cast bar until it
+    /// elapses, then play the skill effect at `position`.
+    GroundSkillCastStart {
+        caster_id: EntityId,
+        skill_id: SkillId,
+        skill_level: SkillLevel,
+        position: TilePosition,
+        cast_time_ms: u32,
+    },
+    /// A ground-targeted skill has landed at `position` (e.g. each meteor
+    /// impact, the storm gust ticking, etc.). Play the corresponding visual.
+    GroundSkillLanded {
+        caster_id: EntityId,
+        skill_id: SkillId,
+        skill_level: SkillLevel,
+        position: TilePosition,
+    },
     RemoveSkillUnit {
         entity_id: EntityId,
     },

@@ -1317,6 +1317,10 @@ impl Entity {
         self.get_common().entity_id
     }
 
+    pub fn get_world_position(&self) -> Point3<f32> {
+        self.get_common().world_position
+    }
+
     pub fn get_job_id(&self) -> JobId {
         self.get_common().job_id
     }

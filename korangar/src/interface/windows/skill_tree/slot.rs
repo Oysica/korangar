@@ -92,7 +92,10 @@ where
         } else {
             let learned_skill = state.try_get(&self.learned_skill_path);
 
-            if learned_skill.is_some_and(|skill| !skill.upgradable) {
+            // Allow drag only when the skill has actually been learned (level > 0).
+            // Maxed-out skills (upgradable = false) still need to be draggable to
+            // the hotbar.
+            if !learned_skill.is_some_and(|skill| skill.skill_level.0 > 0) {
                 return;
             }
 

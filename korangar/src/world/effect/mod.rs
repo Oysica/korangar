@@ -70,6 +70,20 @@ impl Effect {
     }
 
     pub fn render(&self, renderer: &mut EffectRenderer, camera: &dyn Camera, frame_timer: &FrameTimer, position: Point3<f32>) {
+        self.render_with_intensity(renderer, camera, frame_timer, position, 1.0);
+    }
+
+    /// Render the effect with each frame's color multiplied by `intensity`.
+    /// Values above 1.0 brighten additive-blended sprites; useful for
+    /// effects that look washed out at the default opacity.
+    pub fn render_with_intensity(
+        &self,
+        renderer: &mut EffectRenderer,
+        camera: &dyn Camera,
+        frame_timer: &FrameTimer,
+        position: Point3<f32>,
+        intensity: f32,
+    ) {
         for layer in &self.layers {
             let Some(frame) = layer.interpolate_frame(frame_timer) else {
                 continue;
@@ -97,7 +111,7 @@ impl Effect {
                 ],
                 frame.offset,
                 frame.angle,
-                frame.color,
+                frame.color * intensity,
                 frame.source_blend_factor,
                 frame.destination_blend_factor,
             );
@@ -396,6 +410,71 @@ impl EffectBase for EffectWithLight {
                 camera,
                 &self.frame_timer,
                 self.center.to_position() + self.effect_offset,
+            );
+        }
+    }
+}
+
+/// An effect with no associated point light. Plays its frame timer once and
+/// then removes itself. Useful for single-impact visuals where we don't want
+/// to wash out the surrounding ground with a coloured light.
+pub struct SimpleEffect {
+    effect: Arc<Effect>,
+    frame_timer: FrameTimer,
+    center: EffectCenter,
+    effect_offset: Vector3<f32>,
+    intensity: f32,
+    gets_deleted: bool,
+}
+
+impl SimpleEffect {
+    pub fn with_intensity(
+        effect: Arc<Effect>,
+        frame_timer: FrameTimer,
+        center: EffectCenter,
+        effect_offset: Vector3<f32>,
+        intensity: f32,
+    ) -> Self {
+        Self {
+            effect,
+            frame_timer,
+            center,
+            effect_offset,
+            intensity,
+            gets_deleted: false,
+        }
+    }
+}
+
+impl EffectBase for SimpleEffect {
+    fn update(&mut self, entities: &[crate::world::Entity], delta_time: f32) -> bool {
+        if let EffectCenter::Entity(entity_id, position) = &mut self.center
+            && let Some(entity) = entities.iter().find(|entity| entity.get_entity_id() == *entity_id)
+        {
+            *position = entity.get_position();
+        }
+
+        if !self.gets_deleted && !self.frame_timer.update(delta_time) {
+            self.gets_deleted = true;
+        }
+
+        !self.gets_deleted
+    }
+
+    fn mark_for_deletion(&mut self) {
+        self.gets_deleted = true;
+    }
+
+    fn register_point_lights(&self, _point_light_manager: &mut PointLightManager, _camera: &dyn Camera) {}
+
+    fn render(&self, renderer: &mut EffectRenderer, camera: &dyn Camera) {
+        if !self.gets_deleted {
+            self.effect.render_with_intensity(
+                renderer,
+                camera,
+                &self.frame_timer,
+                self.center.to_position() + self.effect_offset,
+                self.intensity,
             );
         }
     }

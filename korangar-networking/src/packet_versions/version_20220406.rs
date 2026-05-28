@@ -748,7 +748,16 @@ where
             color: MessageColor::Error,
         },
     })?;
-    packet_handler.register_noop::<UseSkillSuccessPacket>()?;
+    packet_handler.register(|packet: UseSkillSuccessPacket| NetworkEvent::GroundSkillCastStart {
+        caster_id: packet.source_entity,
+        skill_id: packet.skill_id,
+        // `UseSkillSuccessPacket` doesn't carry the skill level; we don't use it
+        // for the cast bar anyway.
+        skill_level: ragnarok_packets::SkillLevel(0),
+        position: packet.position,
+        // `delay_time` is the actual cast duration in milliseconds.
+        cast_time_ms: packet.delay_time,
+    })?;
     packet_handler.register_noop::<ToUseSkillSuccessPacket>()?;
     packet_handler.register(|packet: NotifySkillUnitPacket| {
         let NotifySkillUnitPacket {
@@ -768,7 +777,14 @@ where
         let SkillUnitDisappearPacket { entity_id } = packet;
         NetworkEvent::RemoveSkillUnit { entity_id }
     })?;
-    packet_handler.register_noop::<NotifyGroundSkillPacket>()?;
+    // 0x0117 fires when a ground skill *lands* (e.g. each meteor impact). It
+    // is NOT the cast-start (that's 0x07FB / UseSkillSuccessPacket above).
+    packet_handler.register(|packet: NotifyGroundSkillPacket| NetworkEvent::GroundSkillLanded {
+        caster_id: packet.entity_id,
+        skill_id: packet.skill_id,
+        skill_level: packet.level,
+        position: packet.position,
+    })?;
     packet_handler.register(|packet: FriendListPacket| NetworkEvent::SetFriendList {
         friend_list: packet.friend_list,
     })?;
